@@ -321,7 +321,9 @@ function M.statusline()
   if detail and detail.attempts and detail.attempts.total then
     table.insert(parts, ("%d/%d"):format(detail.attempts.left, detail.attempts.total))
   end
-  table.insert(parts, (paths.LANGUAGES[solution.language] or {}).file)
+  local file = (paths.LANGUAGES[solution.language] or {}).file
+  local synced = require("programavimas.drafts").statusline(vim.api.nvim_get_current_buf())
+  table.insert(parts, synced and file .. " " .. synced or file)
   return table.concat(parts, " · ")
 end
 

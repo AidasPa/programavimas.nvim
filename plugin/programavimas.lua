@@ -26,6 +26,7 @@ for name, command in pairs({
   courses = "courses",
   open = "open",
   language = "language",
+  sync = "sync",
 }) do
   vim.keymap.set("n", "<Plug>(programavimas-" .. name .. ")", function()
     require("programavimas").dispatch({ command })

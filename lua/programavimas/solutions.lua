@@ -1,6 +1,7 @@
 -- Solution folders in the folder the student chose (paths.lua has the layout, shared with the
--- VS Code extension). Local files are the drafts: this module creates missing folders and
--- files and never overwrites, renames, moves or deletes anything. Existing work is found
+-- VS Code extension). Local files are the drafts, kept in step with the server's copy by
+-- drafts.lua: this module creates missing folders and files and never overwrites, renames,
+-- moves or deletes anything. Existing work is found
 -- through `.programavimas` files, so a folder the student renamed or moved still belongs to its
 -- problem, and folders made by VS Code are found too.
 
@@ -93,14 +94,17 @@ end
 
 -- ------------------------------------------------------------------ finding work
 
+--- A file's bytes, or nil when it cannot be read.
 ---@param path string
-local function read(path)
-  local file = io.open(path, "r")
+---@return string?
+function M.read(path)
+  local file = io.open(path, "rb")
   if not file then return nil end
   local text = file:read("*a")
   file:close()
   return text
 end
+local read = M.read
 
 ---@type table<string, programavimas.Marker|false>  folder → marker (false: none)
 local markers = {}

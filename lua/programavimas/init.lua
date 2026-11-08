@@ -3,7 +3,7 @@
 --
 --   require("programavimas").setup({ ... })   -- optional; see :help programavimas-config
 --   :Programavimas {login|logout|account|courses|open|statement|run|custom|submit|results|
---                   submissions|language|browser|folder}
+--                   submissions|language|sync|browser|folder}
 
 local M = {}
 
@@ -28,6 +28,7 @@ M.commands = {
   results = function() require("programavimas.results").toggle() end,
   submissions = function() require("programavimas.judge").pick_submission() end,
   language = function() require("programavimas.problems").switch_language() end,
+  sync = function() require("programavimas.drafts").sync_now() end,
   browser = function() M.browser() end,
   folder = function()
     require("programavimas.async").run(function()
@@ -118,6 +119,8 @@ function M.attach(buf)
       end
     end
   end
+  -- Saves go to the server's draft; opening, entering and coming back compare with it.
+  require("programavimas.drafts").attach(buf)
   -- The problem's title and attempts for the status line, without blocking the editor.
   local problems = require("programavimas.problems")
   if not problems.details[solution.marker.courseId .. "|" .. solution.marker.problemId]

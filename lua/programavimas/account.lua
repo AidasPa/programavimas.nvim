@@ -132,12 +132,14 @@ function M.login(method)
       -- Someone else: nothing of the previous account stays on screen.
       require("programavimas.statement").forget()
       require("programavimas.judge").forget()
+      require("programavimas.drafts").forget()
     end
     session.set(origin, session.from_tokens(tokens, { id = me.id, name = me.name or me.username or "" }))
     M.me = me
     i18n.account = me.language == "en" and "en" or "lt"
     ui.notify(t("auth.signedIn", { name = me.name or me.username }))
     require("programavimas.courses").refresh()
+    require("programavimas.drafts").check(vim.api.nvim_get_current_buf(), true)
   end)
 end
 
@@ -154,6 +156,7 @@ function M.logout()
     i18n.account = nil
     require("programavimas.courses").forget()
     require("programavimas.judge").forget()
+    require("programavimas.drafts").forget()
     require("programavimas.statement").forget()
     ui.notify(t("auth.signedOutFiles"))
   end)

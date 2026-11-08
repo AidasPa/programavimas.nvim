@@ -42,6 +42,7 @@ the address it gives, on any device.
 | `:Programavimas results` | Show or hide the tests and results |
 | `:Programavimas submissions` | Your recent submissions and their results |
 | `:Programavimas language` | Switch the problem to another language it allows |
+| `:Programavimas sync` | Compare the solution with your draft on the server now |
 | `:Programavimas browser` | Open the problem in the browser |
 | `:Programavimas folder` | Change where solutions are kept |
 | `:Programavimas account` | Who you're signed in as; sign out |
@@ -66,9 +67,20 @@ it there:
 ```
 
 A new solution starts from your newest code on the server (a draft the browser saved, or your
-latest submission), so work done elsewhere comes along. Nothing you wrote is ever
-overwritten, moved or deleted. The VS Code extension uses the same folders: point both at one
-folder and switch editors whenever you like.
+latest submission), so work done elsewhere comes along.
+
+**Drafts sync.** Saving a solution (`:w`) also saves it as your draft on the server, the one the
+web editor and VS Code open, so you can carry on in the browser or on another computer. When you
+open a solution, enter its buffer or come back to Neovim, the plugin compares it with that
+draft: a draft saved elsewhere since replaces the file when the file has nothing new (one
+undoable change, saved), your newer file goes to the server, and when both changed you choose:
+use the saved draft, keep this file, or compare them side by side. Unsaved changes are never
+replaced without asking. `:Programavimas sync` compares now. The status line shows `☁` once the
+server holds the file as saved, `↑` while it is being sent.
+
+Folders and files are never moved, renamed or deleted. The VS Code extension uses the same
+folders and syncs drafts the same way: point both at one folder and switch editors whenever you
+like.
 
 Compiler messages show as diagnostics in your code. The judging step and your attempts are in
 `require("programavimas").statusline()`, for your status line:

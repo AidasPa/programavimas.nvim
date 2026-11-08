@@ -47,6 +47,8 @@ M.defaults = {
     expanded = "▾",
     collapsed = "▸",
     difficulty = "▂▄▆",
+    synced = "☁",
+    syncing = "↑",
   },
   courses = { width = 42, position = "left" },
   results = { height = 14 },

@@ -147,6 +147,14 @@ function M.drafts(course_id, problem_id)
   return M.call("GET", problem_path(course_id, problem_id) .. "/drafts")
 end
 
+--- Saves the caller's draft of a language (`{ language, code, savedAt }`); answers `{ serverAt }`.
+---@param course_id string
+---@param problem_id string
+---@param body { language: string, code: string, savedAt: string }
+function M.save_draft(course_id, problem_id, body)
+  return M.call("POST", problem_path(course_id, problem_id) .. "/drafts", body)
+end
+
 ---@param request { language: string, source: string, input: table }
 function M.run(course_id, problem_id, request)
   return M.call("POST", problem_path(course_id, problem_id) .. "/runs", request)

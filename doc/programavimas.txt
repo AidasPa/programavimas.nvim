@@ -93,6 +93,10 @@ folders and the same results.
     Switches the problem to another language it allows (adding `main.py`,
     `main.cs` or `main.cpp` beside the others).
 
+:Programavimas sync                                     *:Programavimas-sync*
+    Compares the current solution with your draft on the server now (see
+    |programavimas-drafts|).
+
 :Programavimas browser                               *:Programavimas-browser*
     Opens the problem in the browser.
 
@@ -117,6 +121,7 @@ also <Plug> mappings for your own keys:
     <Plug>(programavimas-submit)     <Plug>(programavimas-statement)
     <Plug>(programavimas-results)    <Plug>(programavimas-courses)
     <Plug>(programavimas-open)       <Plug>(programavimas-language)
+    <Plug>(programavimas-sync)
 
 In the Courses sidebar:
     <CR>, o     open the problem, or expand or collapse
@@ -149,11 +154,27 @@ gets a folder there:
 <
 A new solution file starts from your newest code on the server (a draft the
 browser saved, or your latest submission), else from the problem's starter
-code. Files you wrote are never overwritten, moved or deleted. A folder is
+code. Folders and files are never moved, renamed or deleted. A folder is
 recognised by its `.programavimas` file, so you may rename or move it.
 
-The VS Code extension makes the same folders: give both the same solutions
-folder and switch editors whenever you like.
+                                                        *programavimas-drafts*
+Saving a solution (`:w`) also saves it as your draft on the server: the copy
+the web editor and the VS Code extension open, one per language. When you
+open a solution, enter its buffer or come back to Neovim (at most every 15
+seconds), the plugin compares the file with that draft:
+
+  • only the draft changed (saved in the browser or on another computer):
+    the file takes it, as one undoable change, and is saved;
+  • only the file changed: it goes to the server;
+  • both changed: you choose to use the saved draft, keep this file, or
+    compare them side by side first.
+
+Unsaved changes are never replaced without asking. |:Programavimas-sync|
+compares now. The status line shows `☁` once the server holds the file as
+saved and `↑` while it is being sent (|programavimas-config| `icons`).
+
+The VS Code extension makes the same folders and syncs drafts the same way:
+give both the same solutions folder and switch editors whenever you like.
 
 ==============================================================================
 6. RESULTS                                             *programavimas-results*
@@ -204,7 +225,7 @@ other files.
       icons = {},              -- any of: not_started, attempted, complete,
                                -- locked, accepted, failed, limit, output,
                                -- compile, system, expanded, collapsed,
-                               -- difficulty
+                               -- difficulty, synced, syncing
     })
 <
 `server` must be https, or http on this computer (`localhost`, `127.0.0.1`):
