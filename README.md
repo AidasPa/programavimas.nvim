@@ -53,6 +53,12 @@ In a solution file: `<localleader>r` runs the samples, `<localleader>i` runs wit
 `<localleader>l` switches the language. In the sidebar, the statement and the results, `?`
 lists their keys.
 
+The statement is drawn to fit its window, as the browser shows it: formulas in Unicode
+(`1 ≤ n ≤ 2 · 10⁵`, `√(a² + b²)`, and the LaTeX itself where a formula has no plain form),
+lists, tables, code, notes and hints, and each sample's input and output side by side. `<CR>`
+or `gx` on a link or an image opens it. It needs nothing but the Markdown parsers Neovim
+comes with.
+
 Opening a problem the first time asks where solutions should live, then makes a folder for
 it there:
 
@@ -94,6 +100,55 @@ vim.o.statusline = "%f %= %{v:lua.require'programavimas'.statusline()} "
 
 `:checkhealth programavimas` checks the setup. `:help programavimas` has everything else.
 
+## Suggested keys
+
+The plugin sets no global keys (`:help lua-plugin`): you choose them. A set under
+`<leader>p`, with the letters of the keys in solution files, and descriptions for which-key and
+the like:
+
+```lua
+for _, key in ipairs({
+  { "c", "courses", "Courses" },
+  { "o", "open", "Open a problem" },
+  { "p", "statement", "Statement" },
+  { "r", "run", "Run samples" },
+  { "i", "custom", "Run with your input" },
+  { "s", "submit", "Submit" },
+  { "t", "results", "Results" },
+  { "l", "language", "Switch language" },
+  { "h", "submissions", "Submissions" },
+}) do
+  vim.keymap.set("n", "<leader>p" .. key[1], "<Cmd>Programavimas " .. key[2] .. "<CR>", {
+    desc = "Programavimas: " .. key[3],
+  })
+end
+```
+
+Or in the lazy.nvim spec (`lazy = false` keeps solution files recognised from the start):
+
+```lua
+{
+  "AidasPa/programavimas.nvim",
+  lazy = false,
+  opts = {},
+  keys = {
+    { "<leader>pc", "<Cmd>Programavimas courses<CR>", desc = "Programavimas: Courses" },
+    { "<leader>po", "<Cmd>Programavimas open<CR>", desc = "Programavimas: Open a problem" },
+    { "<leader>pp", "<Cmd>Programavimas statement<CR>", desc = "Programavimas: Statement" },
+    { "<leader>pr", "<Cmd>Programavimas run<CR>", desc = "Programavimas: Run samples" },
+    { "<leader>pi", "<Cmd>Programavimas custom<CR>", desc = "Programavimas: Run with your input" },
+    { "<leader>ps", "<Cmd>Programavimas submit<CR>", desc = "Programavimas: Submit" },
+    { "<leader>pt", "<Cmd>Programavimas results<CR>", desc = "Programavimas: Results" },
+    { "<leader>pl", "<Cmd>Programavimas language<CR>", desc = "Programavimas: Switch language" },
+    { "<leader>ph", "<Cmd>Programavimas submissions<CR>", desc = "Programavimas: Submissions" },
+  },
+}
+```
+
+`<leader>ps` submits at once and uses an attempt, as `<localleader>s` does. The
+`<Plug>(programavimas-…)` mappings work too: `vim.keymap.set("n", "<leader>pr",
+"<Plug>(programavimas-run)")`.
+
 ## Settings
 
 ```lua
@@ -112,12 +167,15 @@ require("programavimas").setup({
   },
   courses = { width = 42, position = "left" },
   results = { height = 14 },
+  statement = { render = "builtin" }, -- "markdown": a Markdown buffer, for render-markdown.nvim or markview.nvim
   icons = {},               -- e.g. { complete = "", accepted = "" } with a Nerd Font
 })
 ```
 
-Colours follow your colour scheme: the `Programavimas*` highlight groups link to the
-diagnostic groups (`DiagnosticOk`, `DiagnosticError`, …) and can be overridden.
+Colours follow your colour scheme, light or dark: the `Programavimas*` highlight groups link to
+standard groups (`DiagnosticOk`, `DiagnosticError`, `Title`, `@markup.strong`, `@markup.math`,
+`CursorLine` for code and sample bands, …) and can be overridden; `:help
+programavimas-highlights` lists them.
 
 ## Privacy
 
@@ -146,7 +204,8 @@ How it fits the server (docs/public-api.md in the repository):
 | `http.lua`, `api.lua` | `curl` with its configuration on stdin; `/api/v1` with one refresh and retry on 401 under the same `Idempotency-Key`; RFC 9457 refusals |
 | `paths.lua`, `solutions.lua` | The VS Code extension's folder layout and `.programavimas` marker, byte for byte. `slug_table.lua` is generated (`scripts/slug-table.ts`) because Lua has no Unicode normalisation; `test/fixtures/slug-vectors.json` comes from the extension's own `slug`, and a test fails when the two disagree |
 | `judge.lua`, `results.lua`, `diff.lua` | Runs and submissions. Neovim has no TLS sockets, so instead of the realtime service it reads the run (`GET /runs/{id}`, `GET /submissions/{id}`) at most once a second until it ends |
-| `courses.lua`, `statement.lua`, `ui.lua` | The sidebar, the picker (`vim.ui.select`, so Telescope, fzf-lua or snacks show it when they replace it), the statement (the API's `statementMarkdown`), glyphs and highlight groups |
+| `courses.lua`, `statement.lua`, `ui.lua` | The sidebar, the picker (`vim.ui.select`, so Telescope, fzf-lua or snacks show it when they replace it), the statement, glyphs, highlight groups, the lines builder and wrapping every view uses |
+| `markdown.lua`, `latex.lua` | The statement drawn as text: the API's `statementMarkdown` (written by `packages/content/src/markdown.ts`) parsed with the `markdown` and `markdown_inline` Tree-sitter parsers Neovim bundles, laid out at the window's width with extmark highlights; formulas to Unicode, or their LaTeX when they have no faithful plain form |
 | `i18n.lua`, `time.lua` | Lithuanian and English with the extension's wording; dates in Lithuanian time |
 
 Design: native Neovim throughout (buffers, splits, `vim.ui.select`, `vim.notify`,

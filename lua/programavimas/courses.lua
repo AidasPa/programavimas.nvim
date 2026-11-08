@@ -110,34 +110,72 @@ end
 
 -- ------------------------------------------------------------------ the sidebar
 
+--- A row of the sidebar: `left`, and `right` (quiet details) against the window's right edge.
+--- When both don't fit, the details go on a line of their own under the row, at `indent`.
 ---@param out programavimas.Lines
----@param topic table
-local function topic_description(out, topic, hidden)
-  if topic.mode == "test" then out:add("  " .. t("courses.topicMode.test"), "ProgramavimasAccent") end
-  local due = time.parse(topic.dueAt)
-  if due then
-    out:add("  " .. time.due_label(due), due < os.time() and "ProgramavimasDanger" or "ProgramavimasMuted")
-  end
-  if hidden > 0 then out:add("  " .. t("courses.hidden", { count = hidden }), "ProgramavimasMuted") end
-end
-
----@param out programavimas.Lines
----@param problem table
+---@param width integer
+---@param left { [1]: string, [2]: string? }[]
+---@param right { [1]: string, [2]: string? }[]
 ---@param indent string
-local function problem_line(out, problem, indent)
-  local glyph = ui.status_glyph(problem.status)
-  out:add(indent):add(glyph.icon, glyph.hl):add(" ")
-  out:add(problem.title, problem.status.kind == "locked" and "ProgramavimasMuted" or nil)
-  if problem.type == "spreadsheet" then
-    out:add("  Excel", "ProgramavimasMuted")
-  elseif problem.status.kind == "attempted" then
-    out:add("  " .. t("courses.passed", { passed = problem.status.passed, total = problem.status.total }), "ProgramavimasMuted")
+local function row(out, width, left, right, indent)
+  local function cells(pieces)
+    local total = 0
+    for _, piece in ipairs(pieces) do total = total + vim.api.nvim_strwidth(piece[1]) end
+    return total
   end
+  for _, piece in ipairs(left) do out:add(piece[1], piece[2]) end
+  if #right == 0 then
+    out:nl()
+    return
+  end
+  local room = width - 1 - cells(left) - cells(right)
+  if room < 2 then
+    out:nl():add(indent)
+  else
+    out:add((" "):rep(room))
+  end
+  for _, piece in ipairs(right) do out:add(piece[1], piece[2]) end
   out:nl()
 end
 
+--- A topic's details: an assessment, the deadline.
+---@param topic table
+local function topic_details(topic)
+  local details = {}
+  if topic.mode == "test" then table.insert(details, { t("courses.topicMode.test"), "ProgramavimasAccent" }) end
+  local due = time.parse(topic.dueAt)
+  if due then
+    if #details > 0 then table.insert(details, { " · ", "ProgramavimasFaint" }) end
+    table.insert(details, { time.due_label(due), due < os.time() and "ProgramavimasDanger" or "ProgramavimasMuted" })
+  end
+  return details
+end
+
+---@param out programavimas.Lines
+---@param width integer
+---@param problem table
+---@param indent string
+local function problem_line(out, width, problem, indent)
+  local glyph = ui.status_glyph(problem.status)
+  local left = {
+    { indent },
+    { glyph.icon, glyph.hl },
+    { " " },
+    { problem.title, problem.status.kind == "locked" and "ProgramavimasMuted" or nil },
+  }
+  local right = {}
+  if problem.type == "spreadsheet" then
+    right = { { "Excel", "ProgramavimasMuted" } }
+  elseif problem.status.kind == "attempted" then
+    right = { { t("courses.passed", { passed = problem.status.passed, total = problem.status.total }), "ProgramavimasMuted" } }
+  end
+  row(out, width, left, right, indent .. "  ")
+end
+
+---@param width? integer  The sidebar's text columns
 ---@return programavimas.Lines
-function M.build()
+function M.build(width)
+  width = width or config.options.courses.width
   line_nodes = {}
   local icons = config.options.icons
   local out = ui.lines()
@@ -145,17 +183,41 @@ function M.build()
   out:add(t("view.courses"), "ProgramavimasTitle")
   if me then out:add(" · " .. me.name, "ProgramavimasMuted") end
   out:nl():nl()
+  --- A message, wrapped to the sidebar.
+  local function say(text, hl)
+    for _, line in ipairs(ui.wrap({ { text = text, hl = { hl } } }, width - 1)) do
+      for _, piece in ipairs(line) do out:add(piece.text, piece.hl) end
+      out:nl()
+    end
+  end
   if not require("programavimas.account").signed_in() then
-    out:line(t("auth.notSignedIn"), "ProgramavimasMuted")
+    say(t("auth.notSignedIn"), "ProgramavimasMuted")
     return out
   end
-  if load_error then out:line(load_error, "ProgramavimasDanger") end
+  if load_error then say(load_error, "ProgramavimasDanger") end
   if not M.cache then
-    if loading then out:line(t("courses.loading"), "ProgramavimasMuted") end
+    if loading then say(t("courses.loading"), "ProgramavimasMuted") end
     return out
   end
-  if #M.cache == 0 then out:line(t("courses.empty"), "ProgramavimasMuted") end
-  for _, course in ipairs(M.cache) do
+  if #M.cache == 0 then say(t("courses.empty"), "ProgramavimasMuted") end
+  --- The lines added since `before` all act on `node`.
+  local function mark(before, node)
+    for line = before + 1, out:count() do line_nodes[line] = node end
+  end
+  --- Problems of a section, then how many more are not open yet.
+  local function problems(course, section, indent)
+    for _, problem in ipairs(section.problems or {}) do
+      local before = out:count()
+      problem_line(out, width, problem, indent)
+      mark(before, { kind = "problem", course = course, topic = section.topic, problem = problem })
+    end
+    if (section.hiddenCount or 0) > 0 then
+      out:add(indent):add(icons.locked .. " ", "ProgramavimasFaint")
+      out:line(t("courses.hidden", { count = section.hiddenCount }), "ProgramavimasMuted")
+    end
+  end
+  for index, course in ipairs(M.cache) do
+    if index > 1 then out:nl() end
     local open = expanded[course.id] ~= false
     out:add((open and icons.expanded or icons.collapsed) .. " ", "ProgramavimasMuted"):line(course.title, "ProgramavimasHeading")
     line_nodes[out:count()] = { kind = "course", course = course }
@@ -164,22 +226,15 @@ function M.build()
         if section.topic then
           local topic = section.topic
           local topic_open = expanded[topic.id] == true
-          out:add("  " .. (topic_open and icons.expanded or icons.collapsed) .. " ", "ProgramavimasMuted")
-          out:add(topic.title)
-          topic_description(out, topic, section.hiddenCount or 0)
-          out:nl()
-          line_nodes[out:count()] = { kind = "topic", course = course, topic = topic }
-          if topic_open then
-            for _, problem in ipairs(section.problems or {}) do
-              problem_line(out, problem, "      ")
-              line_nodes[out:count()] = { kind = "problem", course = course, topic = topic, problem = problem }
-            end
-          end
+          local before = out:count()
+          row(out, width, {
+            { "  " .. (topic_open and icons.expanded or icons.collapsed) .. " ", "ProgramavimasMuted" },
+            { topic.title },
+          }, topic_details(topic), "    ")
+          mark(before, { kind = "topic", course = course, topic = topic })
+          if topic_open then problems(course, section, "      ") end
         else
-          for _, problem in ipairs(section.problems or {}) do
-            problem_line(out, problem, "    ")
-            line_nodes[out:count()] = { kind = "problem", course = course, problem = problem }
-          end
+          problems(course, section, "    ")
         end
       end
     end
@@ -191,8 +246,11 @@ end
 function M.redraw()
   local buf = vim.fn.bufnr(BUFFER)
   if buf == -1 or not vim.api.nvim_buf_is_valid(buf) then return end
-  local out = M.build()
+  local win = vim.fn.win_findbuf(buf)[1]
+  local width = win and ui.text_width(win) or config.options.courses.width
+  local out = M.build(width)
   ui.render(buf, out.lines, out.marks)
+  ui.drawn(buf, width)
 end
 
 local function node_at_cursor()
@@ -260,6 +318,8 @@ local function buffer()
   end, "Create course folders")
   map("q", function() M.close() end, "Close")
   map("?", function() ui.notify(t("courses.help")) end, "Keys")
+  -- Details sit against the right edge: drawn again when the sidebar is resized.
+  ui.follow_width(buf, function() M.redraw() end)
   return buf
 end
 
@@ -287,7 +347,7 @@ function M.open()
       cursorline = true,
       spell = false,
     }) do
-      vim.wo[win][option] = value
+      vim.wo[win][0][option] = value
     end
   end
   vim.api.nvim_set_current_win(win)

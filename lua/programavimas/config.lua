@@ -19,6 +19,7 @@ local M = {}
 ---@field icons table<string,string>
 ---@field courses { width: integer, position: "left"|"right" }
 ---@field results { height: integer }
+---@field statement { render: "builtin"|"markdown" }
 M.defaults = {
   server = "https://beta.programavimas.xyz",
   solutions_dir = nil,
@@ -52,6 +53,9 @@ M.defaults = {
   },
   courses = { width = 42, position = "left" },
   results = { height = 14 },
+  -- "builtin": drawn as text, formulas and tables included; "markdown": a Markdown buffer for
+  -- a Markdown renderer plugin (render-markdown.nvim, markview.nvim).
+  statement = { render = "builtin" },
 }
 
 ---@type programavimas.Config
@@ -62,6 +66,10 @@ function M.setup(opts)
   if opts ~= nil and type(opts) ~= "table" then error("programavimas.setup: opts must be a table") end
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
   if opts and opts.keymaps == false then M.options.keymaps = false end
+  local render = M.options.statement.render
+  if render ~= "builtin" and render ~= "markdown" then
+    error(('programavimas.setup: statement.render must be "builtin" or "markdown", not %s'):format(vim.inspect(render)))
+  end
 end
 
 --- The server's origin (scheme, host and port), or nil when the setting is not one the access

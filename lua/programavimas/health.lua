@@ -18,6 +18,21 @@ function M.check()
   else
     health.error("curl was not found", "Install curl: the plugin talks to the server with it")
   end
+  -- The statement is drawn from Markdown with the parsers Neovim comes with.
+  local missing = {}
+  for _, language in ipairs({ "markdown", "markdown_inline" }) do
+    local ok, parser = pcall(vim.treesitter.get_string_parser, "", language)
+    if not ok or not parser then table.insert(missing, language) end
+  end
+  if #missing == 0 then
+    health.ok("Tree-sitter parsers markdown and markdown_inline, for statements")
+  elseif config.options.statement.render == "markdown" then
+    health.info("No Tree-sitter parser " .. table.concat(missing, ", ") .. " (statements are Markdown buffers here)")
+  else
+    health.warn("No Tree-sitter parser " .. table.concat(missing, ", ") .. ": statements show as plain Markdown", {
+      "They come with Neovim: reinstall it, or :TSInstall markdown markdown_inline with nvim-treesitter",
+    })
+  end
 
   health.start("Server and account")
   local origin = config.origin()

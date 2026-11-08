@@ -103,6 +103,16 @@ end
 --- The buffer's main file and its record key, or nil (not a main file, signed out).
 ---@param buf integer
 ---@return programavimas.DraftTarget?
+--- The record key of a solution's main file for the signed-in account (as VS Code keys it).
+---@param solution programavimas.Solution
+---@return string?
+local function key_of(solution)
+  local origin = config.origin()
+  local current = origin and session.get(origin)
+  if not current or type(current.accountId) ~= "string" then return nil end
+  return table.concat({ origin, current.accountId, solution.marker.courseId, solution.marker.problemId, solution.language }, "|")
+end
+
 local function target_of(buf)
   if not vim.api.nvim_buf_is_valid(buf) then return nil end
   local name = vim.api.nvim_buf_get_name(buf)
@@ -110,10 +120,8 @@ local function target_of(buf)
   if not solution or not paths.is_editor_language(solution.language) then return nil end
   local file = paths.solution_file(solution.language)
   if vim.fs.basename(name) ~= file then return nil end
-  local origin = config.origin()
-  local current = origin and session.get(origin)
-  if not current or type(current.accountId) ~= "string" then return nil end
-  local key = table.concat({ origin, current.accountId, solution.marker.courseId, solution.marker.problemId, solution.language }, "|")
+  local key = key_of(solution)
+  if not key then return nil end
   return { key = key, solution = solution, file = file }
 end
 
@@ -129,7 +137,13 @@ local function when(value)
 end
 
 ---@param target programavimas.DraftTarget
-local function saved_text(target) return solutions.read(target.solution.main) or "" end
+--- The main file as saved, with Windows line ends as `\n`: the web editor's and VS Code's
+--- copies use `\n`, so a CRLF file compares equal to the same code.
+---@param target programavimas.DraftTarget
+local function saved_text(target)
+  local text = (solutions.read(target.solution.main) or ""):gsub("\r\n", "\n")
+  return text
+end
 
 -- ------------------------------------------------------------------ sending
 
@@ -221,6 +235,18 @@ local function schedule(target, code, saved_at, delay_ms)
   M.status[target.key] = "pending"
   if queue.timer then queue.timer:stop() else queue.timer = vim.uv.new_timer() end
   queue.timer:start(delay_ms, 0, vim.schedule_wrap(function() send(target) end))
+end
+
+--- A new or blank main file was just filled from the server: from its draft (they match), or
+--- from the latest submission because that is newer than the draft (the file supersedes it,
+--- so the first check sends it instead of asking).
+---@param solution programavimas.Solution
+---@param draft programavimas.ServerDraft?  The server's draft of the file's language
+---@param code string  What the file was filled with
+function M.started(solution, draft, code)
+  local key = draft and key_of(solution)
+  if not key then return end
+  set_record(key, { serverAt = draft.serverAt, sha256 = vim.fn.sha256((code:gsub("\r\n", "\n"))) })
 end
 
 --- After a solution buffer was written: its main file goes to the server.

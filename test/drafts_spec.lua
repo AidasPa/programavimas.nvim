@@ -38,6 +38,31 @@ describe("draft sync", function()
     eq("take", decide({ text = "# write here\n", draft = draft("print(9)\n", "s2"), pristine = true }))
   end)
 
+  it("records a file started from the server, so the first check matches it or sends it", function()
+    local solutions = require("programavimas.solutions")
+    local session = require("programavimas.session")
+    local config = require("programavimas.config")
+    local saved = { solutions.state, solutions.remember, session.get, config.origin }
+    local state = {}
+    solutions.state = function() return state end
+    solutions.remember = function(key, value) state[key] = value end
+    session.get = function() return { accountId = "u1" } end
+    config.origin = function() return "https://example.com" end
+    local solution = { folder = "/f", main = "/f/main.py", language = "python", marker = { courseId = "c", problemId = "p" } }
+
+    -- Filled from the latest submission, newer than the draft (Windows line ends too).
+    drafts.started(solution, draft("print(0)\n", "s1"), "print(1)\r\n")
+    local key = "https://example.com|u1|c|p|python"
+    eq({ serverAt = "s1", sha256 = vim.fn.sha256("print(1)\n") }, state.drafts[key])
+    eq("push", decide({ text = "print(1)\n", draft = draft("print(0)\n", "s1"), record = state.drafts[key] }))
+    -- No draft on the server: nothing to record.
+    state.drafts = nil
+    drafts.started(solution, nil, "print(1)\n")
+    eq(nil, state.drafts)
+
+    solutions.state, solutions.remember, session.get, config.origin = unpack(saved)
+  end)
+
   it("asks when both changed, when nothing says which is newer, or over unsaved changes", function()
     eq("ask", decide({ text = "print(2)\n", draft = draft("print(9)\n", "s2"), record = record("s1", "print(1)\n") }))
     eq("ask", decide({ text = "print(2)\n", draft = draft("print(9)\n", "s2") }))

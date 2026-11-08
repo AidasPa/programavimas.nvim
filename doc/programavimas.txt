@@ -65,9 +65,21 @@ folders and the same results.
     solution file and its statement beside it.
 
 :Programavimas statement                           *:Programavimas-statement*
-    The statement of the problem you are on, as Markdown: the problem's facts
-    on top (status, difficulty, limits, input and output, languages,
-    deadline, attempts left), formulas as LaTeX, images as links.
+                                                     *programavimas-statement*
+    The statement of the problem you are on, beside your code: the title,
+    the course and topic, the problem's facts (status, difficulty, limits,
+    input and output, languages, deadline, attempts left), then the
+    statement drawn to fit the window, as the browser shows it: headings,
+    lists, tables, code, notes and hints, each sample's input and output
+    side by side when there is room, and formulas in Unicode
+    (`1 ≤ n ≤ 2 · 10⁵`, `√(a² + b²)`; a formula with no plain form keeps its
+    LaTeX). It is drawn again when the window's width changes. `<CR>` or
+    `gx` on a link or an image opens it in the browser.
+
+    It is drawn with the Markdown parsers Neovim comes with; nothing else is
+    needed. To read it with a Markdown plugin (render-markdown.nvim,
+    markview.nvim) instead, set `statement = { render = "markdown" }`: the
+    statement is then a Markdown buffer with formulas as LaTeX.
 
 :Programavimas run                                       *:Programavimas-run*
     Runs your program with the problem's samples. Not graded: as often as
@@ -132,11 +144,64 @@ In the Courses sidebar:
     q           close
     ?           these keys
 
-In the statement: `o` opens the solution, `gb` the problem in the browser,
-`r` loads it again, `q` closes it, `?` lists the keys.
+In the statement: <CR> or `gx` opens the link under the cursor, `o` opens
+the solution, `gb` the problem in the browser, `r` loads it again, `q`
+closes it, `?` lists the keys.
 
 In the results: <CR> shows or hides a test's data, `r` runs the samples
 again, `q` closes, `?` lists the keys.
+
+                                                *programavimas-suggested-keys*
+The plugin sets no global keys (|lua-plugin|): you choose them. A set under
+<leader>p with the letters of the keys in solution files, with descriptions
+that which-key and the like show:
+>lua
+    for _, key in ipairs({
+      { "c", "courses", "Courses" },
+      { "o", "open", "Open a problem" },
+      { "p", "statement", "Statement" },
+      { "r", "run", "Run samples" },
+      { "i", "custom", "Run with your input" },
+      { "s", "submit", "Submit" },
+      { "t", "results", "Results" },
+      { "l", "language", "Switch language" },
+      { "h", "submissions", "Submissions" },
+    }) do
+      vim.keymap.set("n", "<leader>p" .. key[1],
+        "<Cmd>Programavimas " .. key[2] .. "<CR>",
+        { desc = "Programavimas: " .. key[3] })
+    end
+<
+The same in a lazy.nvim spec; `lazy = false` keeps solution files recognised
+from the start:
+>lua
+    {
+      "AidasPa/programavimas.nvim",
+      lazy = false,
+      opts = {},
+      keys = {
+        { "<leader>pc", "<Cmd>Programavimas courses<CR>",
+          desc = "Programavimas: Courses" },
+        { "<leader>po", "<Cmd>Programavimas open<CR>",
+          desc = "Programavimas: Open a problem" },
+        { "<leader>pp", "<Cmd>Programavimas statement<CR>",
+          desc = "Programavimas: Statement" },
+        { "<leader>pr", "<Cmd>Programavimas run<CR>",
+          desc = "Programavimas: Run samples" },
+        { "<leader>pi", "<Cmd>Programavimas custom<CR>",
+          desc = "Programavimas: Run with your input" },
+        { "<leader>ps", "<Cmd>Programavimas submit<CR>",
+          desc = "Programavimas: Submit" },
+        { "<leader>pt", "<Cmd>Programavimas results<CR>",
+          desc = "Programavimas: Results" },
+        { "<leader>pl", "<Cmd>Programavimas language<CR>",
+          desc = "Programavimas: Switch language" },
+        { "<leader>ph", "<Cmd>Programavimas submissions<CR>",
+          desc = "Programavimas: Submissions" },
+      },
+    }
+<
+<leader>ps submits at once and uses an attempt, as <localleader>s does.
 
 ==============================================================================
 5. SOLUTION FOLDERS                                    *programavimas-folders*
@@ -182,9 +247,10 @@ give both the same solutions folder and switch editors whenever you like.
 A run or submission shows in a window below the editor while it is judged
 (waiting, compiling, testing 7/12) and then its verdict, the tests passed,
 times and memory, and every test. A failed test opens with its input, the
-expected output and yours, the differing lines marked and the first
-difference named. Once a submission is judged you see every test of it,
-hidden tests included.
+expected output and yours (side by side when the window is wide enough),
+the differing lines marked and the first difference named. Once a
+submission is judged you see every test of it, hidden tests included. A run
+with your input shows that input beside what your program wrote.
 
 Compiler messages become |diagnostics| in your code (`:lua
 vim.diagnostic.setqflist()` lists them) and clear when you edit.
@@ -222,6 +288,7 @@ other files.
       },
       courses = { width = 42, position = "left" },
       results = { height = 14 },
+      statement = { render = "builtin" }, -- or "markdown"
       icons = {},              -- any of: not_started, attempted, complete,
                                -- locked, accepted, failed, limit, output,
                                -- compile, system, expanded, collapsed,
@@ -231,22 +298,41 @@ other files.
 `server` must be https, or http on this computer (`localhost`, `127.0.0.1`):
 your access token is sent there.
 
+`statement.render` is "builtin" (the statement drawn as text, see
+|programavimas-statement|) or "markdown" (a Markdown buffer, for a Markdown
+renderer plugin).
+
 ==============================================================================
 9. COLOURS                                          *programavimas-highlights*
 
-The highlight groups link to standard groups, so your colour scheme applies.
-Override any of them after it loads:
+The highlight groups link to standard groups, so your colour scheme applies,
+light or dark. Override any of them after it loads:
 
     ProgramavimasSuccess    DiagnosticOk     solved, accepted
     ProgramavimasDanger     DiagnosticError  failed tests, overdue
-    ProgramavimasWarning    DiagnosticWarn   limits, solved late
+    ProgramavimasWarning    DiagnosticWarn   limits, solved late, warnings,
+                                             the first difference
     ProgramavimasProgress   DiagnosticInfo   attempted, judging
-    ProgramavimasMuted      Comment          quiet details
-    ProgramavimasFaint      NonText          separators, line numbers
+    ProgramavimasMuted      Comment          quiet details, labels
+    ProgramavimasFaint      NonText          separators, rules, line numbers
     ProgramavimasTitle      Title            titles
-    ProgramavimasHeading    Bold             courses, data labels
+    ProgramavimasHeading    @markup.heading  courses, statement headings
     ProgramavimasAccent     Special          difficulty, assessments
     ProgramavimasDiff       DiffText         differing output lines
+
+In the statement:
+
+    ProgramavimasStrong     @markup.strong   bold text, table headers
+    ProgramavimasEmphasis   @markup.italic   italic text
+    ProgramavimasStrike     @markup.strikethrough
+    ProgramavimasCode       @markup.raw      code in text
+    ProgramavimasCodeBlock  CursorLine       code and sample bands
+    ProgramavimasMath       @markup.math     formulas
+    ProgramavimasLink       @markup.link.label  links and images
+    ProgramavimasQuote      @markup.quote    the bar of a quote
+    ProgramavimasListMarker @markup.list     bullets and numbers
+    ProgramavimasNote       DiagnosticInfo   notes
+    ProgramavimasHint       DiagnosticHint   hints
 
 ==============================================================================
 10. PRIVACY                                              *programavimas-privacy*

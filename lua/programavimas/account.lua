@@ -42,31 +42,39 @@ end
 --- The code and the address to type it at, in a small window; returns its closer.
 ---@param start programavimas.DeviceStart
 local function show_device_code(start)
-  local lines = {
-    "",
-    "  " .. t("auth.deviceSteps", { url = start.verification_uri }),
-    "",
-    "      " .. start.user_code,
-    "",
-    "  " .. t("auth.deviceWaiting"),
-    "",
-  }
-  local width = 0
-  for _, line in ipairs(lines) do width = math.max(width, vim.fn.strdisplaywidth(line) + 2) end
+  local pad = "  "
+  local texts = { t("auth.deviceOpen"), start.verification_uri, t("auth.deviceEnter"), t("auth.deviceWaiting") }
+  local inner = vim.api.nvim_strwidth(start.user_code)
+  for _, text in ipairs(texts) do inner = math.max(inner, vim.api.nvim_strwidth(text)) end
+  local width = math.min(inner + 2 * #pad, vim.o.columns - 4)
+  local out = ui.lines()
+  out:nl()
+  out:add(pad):line(t("auth.deviceOpen"))
+  out:add(pad):line(start.verification_uri, "ProgramavimasLink")
+  out:add(pad):line(t("auth.deviceEnter"))
+  out:nl()
+  local indent = math.max(0, math.floor((width - vim.api.nvim_strwidth(start.user_code)) / 2))
+  out:add((" "):rep(indent)):line(start.user_code, "ProgramavimasTitle")
+  out:nl()
+  out:add(pad):line(t("auth.deviceWaiting"), "ProgramavimasMuted")
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].modifiable = false
-  vim.api.nvim_buf_set_extmark(buf, ui.ns, 3, 0, { end_col = #lines[4], hl_group = "ProgramavimasTitle" })
+  ui.render(buf, out.lines, out.marks)
+  -- The border the user set for floating windows (0.11's 'winborder'), else a rounded one; the
+  -- title and the footer need one.
+  local own = vim.fn.exists("+winborder") == 1 and vim.o.winborder ~= "" and vim.o.winborder ~= "none"
+  local border = not own and "rounded" or nil
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
     width = width,
-    height = #lines,
-    row = math.floor((vim.o.lines - #lines) / 2),
+    height = #out.lines,
+    row = math.floor((vim.o.lines - #out.lines) / 2) - 1,
     col = math.floor((vim.o.columns - width) / 2),
     style = "minimal",
-    border = "rounded",
+    border = border,
     title = " " .. t("auth.deviceTitle") .. " ",
     title_pos = "center",
+    footer = " " .. t("auth.deviceCancel") .. " ",
+    footer_pos = "right",
   })
   local function close()
     if vim.api.nvim_win_is_valid(win) then vim.api.nvim_win_close(win, true) end

@@ -17,10 +17,22 @@ local LINKS = {
   ProgramavimasProgress = "DiagnosticInfo",
   ProgramavimasMuted = "Comment",
   ProgramavimasTitle = "Title",
-  ProgramavimasHeading = "Bold",
+  ProgramavimasHeading = "@markup.heading",
   ProgramavimasAccent = "Special",
   ProgramavimasDiff = "DiffText",
   ProgramavimasFaint = "NonText",
+  -- The statement (markdown.lua)
+  ProgramavimasStrong = "@markup.strong",
+  ProgramavimasEmphasis = "@markup.italic",
+  ProgramavimasStrike = "@markup.strikethrough",
+  ProgramavimasCode = "@markup.raw",
+  ProgramavimasCodeBlock = "CursorLine",
+  ProgramavimasMath = "@markup.math",
+  ProgramavimasLink = "@markup.link.label",
+  ProgramavimasQuote = "@markup.quote",
+  ProgramavimasListMarker = "@markup.list",
+  ProgramavimasNote = "DiagnosticInfo",
+  ProgramavimasHint = "DiagnosticHint",
 }
 
 function M.highlights()
@@ -150,6 +162,7 @@ local SIMPLE = {
   empty_source = "errors.emptySource",
   locked = "errors.locked",
   busy = "errors.busy",
+  judging = "errors.judging",
   no_samples = "errors.noSamples",
   custom_during_exam = "errors.customDuringExam",
   version_changed = "errors.versionChanged",
@@ -212,7 +225,7 @@ end
 --- Replaces a scratch buffer's text and highlights.
 ---@param buf integer
 ---@param lines string[]
----@param marks? { line: integer, col: integer, end_col: integer, hl: string }[]  0-based
+---@param marks? programavimas.Mark[]
 function M.render(buf, lines, marks)
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -223,8 +236,48 @@ function M.render(buf, lines, marks)
     pcall(vim.api.nvim_buf_set_extmark, buf, M.ns, mark.line, mark.col, {
       end_col = mark.end_col,
       hl_group = mark.hl,
+      priority = mark.priority,
     })
   end
+end
+
+--- The columns a window has for text (without its number, sign and fold columns).
+---@param win integer
+function M.text_width(win)
+  local info = vim.fn.getwininfo(win)[1]
+  return info and info.width - info.textoff or vim.api.nvim_win_get_width(win)
+end
+
+--- Views laid out for their window's width (the statement, the sidebar, the results), by
+--- buffer: drawn again when the width of the window showing them changes.
+---@type table<integer, { redraw: fun(win: integer), width: integer? }>
+local followers = {}
+
+---@param buf integer
+---@param redraw fun(win: integer)
+function M.follow_width(buf, redraw)
+  followers[buf] = { redraw = redraw, width = followers[buf] and followers[buf].width }
+  local group = vim.api.nvim_create_augroup("programavimas_width", { clear = true })
+  vim.api.nvim_create_autocmd({ "WinResized", "VimResized", "BufWinEnter" }, {
+    group = group,
+    callback = vim.schedule_wrap(function()
+      for view, follower in pairs(followers) do
+        if not vim.api.nvim_buf_is_valid(view) then
+          followers[view] = nil
+        else
+          local win = vim.fn.win_findbuf(view)[1]
+          if win and follower.width and M.text_width(win) ~= follower.width then follower.redraw(win) end
+        end
+      end
+    end),
+  })
+end
+
+--- Records the width a followed view was drawn for.
+---@param buf integer
+---@param width integer
+function M.drawn(buf, width)
+  if followers[buf] then followers[buf].width = width end
 end
 
 --- The window showing `buf` in this tab page, if any.
@@ -237,28 +290,56 @@ function M.window_of(buf)
   return nil
 end
 
---- A line builder that records highlights by byte columns as text is appended.
+---@class programavimas.Mark  A highlight, 0-based by byte columns
+---@field line integer
+---@field col integer
+---@field end_col integer
+---@field hl string
+---@field priority integer?
+
+---@class programavimas.Link  Where a link's text is, 0-based by byte columns
+---@field line integer
+---@field col integer
+---@field end_col integer
+---@field url string
+
+--- A line builder that records highlights (and links) by byte columns as text is appended.
 ---@class programavimas.Lines
 ---@field lines string[]
----@field marks { line: integer, col: integer, end_col: integer, hl: string }[]
+---@field marks programavimas.Mark[]
+---@field links programavimas.Link[]
 local Lines = {}
 Lines.__index = Lines
 
 function M.lines()
-  return setmetatable({ lines = {}, marks = {}, current = nil }, Lines)
+  return setmetatable({ lines = {}, marks = {}, links = {}, current = nil }, Lines)
 end
 
---- Appends a piece to the current line (starting one when needed).
+--- Appends a piece to the current line (starting one when needed). `hl` is a group or a list
+--- of groups layered in order (a band below, a colour above it); `url` makes the piece a link.
 ---@param text string
----@param hl? string
-function Lines:add(text, hl)
+---@param hl? string|string[]
+---@param url? string
+function Lines:add(text, hl, url)
   if self.current == nil then
     table.insert(self.lines, "")
     self.current = #self.lines
   end
   local line = self.lines[self.current]
   if hl and text ~= "" then
-    table.insert(self.marks, { line = self.current - 1, col = #line, end_col = #line + #text, hl = hl })
+    local groups = type(hl) == "table" and hl or { hl }
+    for layer, group in ipairs(groups) do
+      table.insert(self.marks, {
+        line = self.current - 1,
+        col = #line,
+        end_col = #line + #text,
+        hl = group,
+        priority = #groups > 1 and 4096 + layer or nil,
+      })
+    end
+  end
+  if url and text ~= "" then
+    table.insert(self.links, { line = self.current - 1, col = #line, end_col = #line + #text, url = url })
   end
   self.lines[self.current] = line .. text
   return self
@@ -295,5 +376,117 @@ end
 
 --- The number of the line being built (1-based), for keys that act on lines.
 function Lines:count() return #self.lines end
+
+-- ------------------------------------------------------------------ wrapping
+
+---@class programavimas.Segment  A piece of a line and its look
+---@field text string
+---@field hl string[]?
+---@field url string?
+
+---@param line programavimas.Segment[]
+---@param text string
+---@param segment programavimas.Segment
+local function append(line, text, segment)
+  local last = line[#line]
+  if last and last.hl == segment.hl and last.url == segment.url then
+    last.text = last.text .. text
+  else
+    table.insert(line, { text = text, hl = segment.hl, url = segment.url })
+  end
+end
+
+--- Styled text as lines of at most `width` columns, broken at spaces (an `atomic` span, code
+--- or a formula, only when it would not fit a line), `brk` spans and newlines kept.
+---@param spans { text: string, hl: string[]?, url: string?, atomic: boolean?, brk: boolean? }[]
+---@param width integer
+---@return programavimas.Segment[][]
+function M.wrap(spans, width)
+  width = math.max(width, 4)
+  local words, current, space = {}, nil, nil
+  local function flush()
+    if current then table.insert(words, current) end
+    current = nil
+  end
+  local function push(text, span)
+    if text == "" then return end
+    if not current then
+      current = { segments = {}, width = 0, space = space }
+      space = nil
+    end
+    table.insert(current.segments, { text = text, hl = span.hl, url = span.url })
+    current.width = current.width + vim.api.nvim_strwidth(text)
+  end
+  for _, span in ipairs(spans) do
+    local text = span.text
+    if span.brk then
+      flush()
+      space = nil
+      table.insert(words, { brk = true })
+    elseif span.atomic and vim.api.nvim_strwidth(text) <= width and not text:find("\n") then
+      push(text, span)
+    else
+      local position = 1
+      while position <= #text do
+        local from, to = text:find("%s+", position)
+        if not from then
+          push(text:sub(position), span)
+          break
+        end
+        if from > position then push(text:sub(position, from - 1), span) end
+        flush()
+        if text:sub(from, to):find("\n") then
+          table.insert(words, { brk = true })
+          space = nil
+        else
+          space = { text = " ", hl = span.hl, url = span.url }
+        end
+        position = to + 1
+      end
+    end
+  end
+  flush()
+
+  local lines, line, used = {}, {}, 0
+  local function newline()
+    table.insert(lines, line)
+    line, used = {}, 0
+  end
+  for _, word in ipairs(words) do
+    if word.brk then
+      newline()
+    else
+      if used > 0 and used + 1 + word.width > width then newline() end
+      if used > 0 then
+        local gap = word.space or { text = " " }
+        append(line, " ", gap)
+        used = used + 1
+      end
+      if word.width > width - used then
+        -- Longer than a line (a long address): cut where the line ends.
+        for _, segment in ipairs(word.segments) do
+          for char in segment.text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+            local cells = vim.api.nvim_strwidth(char)
+            if used > 0 and used + cells > width then newline() end
+            append(line, char, segment)
+            used = used + cells
+          end
+        end
+      else
+        for _, segment in ipairs(word.segments) do append(line, segment.text, segment) end
+        used = used + word.width
+      end
+    end
+  end
+  if #line > 0 or #lines == 0 then table.insert(lines, line) end
+  return lines
+end
+
+---@param segments programavimas.Segment[]
+function M.segments_width(segments)
+  local total = 0
+  for _, segment in ipairs(segments) do total = total + vim.api.nvim_strwidth(segment.text) end
+  return total
+end
 
 return M

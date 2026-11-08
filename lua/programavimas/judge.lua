@@ -161,6 +161,7 @@ function M.start(kind)
     if kind == "samples" and #(detail.samples or {}) == 0 then return ui.warn(t("errors.noSamples")) end
     local buf, source = source_of(solution)
     local request = { language = solution.language, source = source }
+    local custom ---@type programavimas.CustomInput?
     if kind ~= "submit" then
       request.input = { kind = "samples" }
       if kind == "custom" then
@@ -171,6 +172,7 @@ function M.start(kind)
           return vim.cmd.edit(vim.fn.fnameescape(path))
         end
         request.input = { kind = "custom", stdin = stdin }
+        custom = { file = name, output = detail.io.kind == "files" and detail.io.output or nil, text = stdin }
       end
     end
 
@@ -181,7 +183,12 @@ function M.start(kind)
     local title = detail.title
     M.active = { generation = mine, key = key, phase = "queued", graded = graded }
     start_spinner()
-    results.set({ kind = "sending", graded = graded, input = request.input and request.input.kind, title = title }, true, detail.attempts)
+    results.set(
+      { kind = "sending", graded = graded, input = request.input and request.input.kind, title = title },
+      true,
+      detail.attempts,
+      custom
+    )
 
     local response, refusal
     if graded then

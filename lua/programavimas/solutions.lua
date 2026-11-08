@@ -282,10 +282,11 @@ function M.prepare(detail, layout, root, me)
   local existing_marker = existing and M.marker(existing) or nil
   local kept = existing_marker and vim.tbl_contains(allowed, existing_marker.language) and existing_marker.language or nil
 
-  local start
+  local start, drafts
   local blank = not kept or not existing or M.is_blank(vim.fs.joinpath(existing, paths.solution_file(kept)))
   if blank then
-    local drafts, latest = unpack(async.all({
+    local latest
+    drafts, latest = unpack(async.all({
       function() return (api.drafts(detail.course.id, detail.id) or {}).items end,
       function()
         local submission = api.latest_submission(detail.course.id, detail.id)
@@ -317,6 +318,11 @@ function M.prepare(detail, layout, root, me)
   local started
   if start and start.language == language and fill_if_blank(main, start.source) then
     started = start.origin
+    local draft
+    for _, item in ipairs(drafts or {}) do
+      if item.language == language then draft = item end
+    end
+    require("programavimas.drafts").started({ folder = folder, marker = marker, main = main, language = language }, draft, start.source)
   else
     write_if_missing(main, (detail.starterCode or {})[language] or "")
   end

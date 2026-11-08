@@ -14,7 +14,6 @@ local en = {
   ["auth.waiting"] = "Allow access in the browser to sign in…",
   ["auth.openUrl"] = "If the browser didn't open, go to {url}",
   ["auth.deviceTitle"] = "Sign in to Programavimas",
-  ["auth.deviceSteps"] = "On any device, open {url} and enter this code:",
   ["auth.deviceWaiting"] = "Waiting for you to allow access…",
   ["auth.signedIn"] = "Signed in as {name}.",
   ["auth.failed"] = "Sign-in didn't complete. Try again.",
@@ -105,6 +104,7 @@ local en = {
   ["errors.noAttempts"] = "No attempts left today. Next attempt: {date}.",
   ["errors.noAttemptsNoDate"] = "No attempts left today.",
   ["errors.busy"] = "Wait for your previous submissions to be checked.",
+  ["errors.judging"] = "Your previous submission of this problem is still being judged. Submit again once it's checked.",
   ["errors.rateLimited"] = "Too many requests in a short time. Wait {seconds} s and try again.",
   ["errors.rateLimitedNoTime"] = "Too many requests in a short time. Wait a moment and try again.",
   ["errors.noSamples"] = "This problem has no sample tests. Run your program with custom input.",
@@ -190,6 +190,13 @@ local en = {
 
   ["submissions.empty"] = "You haven't submitted anything yet.",
   ["submissions.prompt"] = "Your recent submissions",
+
+  ["statement.image"] = "Image",
+  ["statement.keys"] = "<CR> or gx open the link · o open the solution · gb open in browser · r refresh · q close",
+  ["results.inputFrom"] = "Input · {file}",
+  ["auth.deviceOpen"] = "On any device, open",
+  ["auth.deviceEnter"] = "and enter this code:",
+  ["auth.deviceCancel"] = "q cancel",
 }
 
 local lt = {
@@ -201,7 +208,6 @@ local lt = {
   ["auth.waiting"] = "Leiskite prieigą naršyklėje, kad prisijungtumėte…",
   ["auth.openUrl"] = "Jei naršyklė neatsidarė, eikite į {url}",
   ["auth.deviceTitle"] = "Prisijungimas prie Programavimas",
-  ["auth.deviceSteps"] = "Bet kuriame įrenginyje atidarykite {url} ir įveskite šį kodą:",
   ["auth.deviceWaiting"] = "Laukiama, kol leisite prieigą…",
   ["auth.signedIn"] = "Prisijungta kaip {name}.",
   ["auth.failed"] = "Prisijungti nepavyko. Bandykite dar kartą.",
@@ -292,6 +298,7 @@ local lt = {
   ["errors.noAttempts"] = "Šiandienos bandymai išnaudoti. Kitas bandymas – {date}.",
   ["errors.noAttemptsNoDate"] = "Šiandienos bandymai išnaudoti.",
   ["errors.busy"] = "Palaukite, kol bus patikrinti ankstesni sprendimai.",
+  ["errors.judging"] = "Ankstesnis šios užduoties sprendimas dar tikrinamas. Pateikite iš naujo, kai jis bus patikrintas.",
   ["errors.rateLimited"] = "Per daug užklausų per trumpą laiką. Palaukite {seconds} s ir pakartokite.",
   ["errors.rateLimitedNoTime"] = "Per daug užklausų per trumpą laiką. Palaukite akimirką ir pakartokite.",
   ["errors.noSamples"] = "Ši užduotis neturi pavyzdinių testų. Paleiskite programą su savais duomenimis.",
@@ -377,6 +384,13 @@ local lt = {
 
   ["submissions.empty"] = "Dar nieko nepateikėte.",
   ["submissions.prompt"] = "Naujausi jūsų sprendimai",
+
+  ["statement.image"] = "Paveikslėlis",
+  ["statement.keys"] = "<CR> ar gx atidaryti nuorodą · o atidaryti sprendimą · gb atidaryti naršyklėje · r atnaujinti · q uždaryti",
+  ["results.inputFrom"] = "Pradiniai duomenys · {file}",
+  ["auth.deviceOpen"] = "Bet kuriame įrenginyje atidarykite",
+  ["auth.deviceEnter"] = "ir įveskite šį kodą:",
+  ["auth.deviceCancel"] = "q atšaukti",
 }
 
 M.catalogs = { en = en, lt = lt }
