@@ -1,0 +1,239 @@
+*programavimas.txt*  Your programavimas.xyz courses in Neovim
+
+==============================================================================
+CONTENTS                                              *programavimas-contents*
+
+  1. Introduction ............................... |programavimas-intro|
+  2. Signing in ................................. |programavimas-login|
+  3. Commands ................................... |programavimas-commands|
+  4. Keys ....................................... |programavimas-keys|
+  5. Solution folders ........................... |programavimas-folders|
+  6. Results .................................... |programavimas-results|
+  7. Status line ................................ |programavimas-statusline|
+  8. Settings ................................... |programavimas-config|
+  9. Colours .................................... |programavimas-highlights|
+ 10. Privacy .................................... |programavimas-privacy|
+
+==============================================================================
+1. INTRODUCTION                                          *programavimas-intro*
+
+Programavimas brings your courses of programavimas.xyz into Neovim: topics and
+problems in a sidebar, the statement beside your code, your solutions as
+ordinary files, and running and submitting on the same judge as the browser.
+Your code never runs on your computer, and you only ever see your own results.
+
+Needs Neovim 0.10 or later and `curl`. `:checkhealth programavimas` checks
+both, the server and your sign-in.
+
+It is the twin of the VS Code extension: the same account, the same solution
+folders and the same results.
+
+==============================================================================
+2. SIGNING IN                                            *programavimas-login*
+
+:Programavimas login                                   *:Programavimas-login*
+    Opens the sign-in page in your browser. Allow access there and come
+    back: Neovim is signed in. If no browser opens, the address is shown.
+    Over SSH the device sign-in below is used instead.
+
+:Programavimas login device
+    Shows a code and an address. Open the address on any device (your phone
+    will do), sign in, type the code and allow access. For a Neovim on a
+    server or anywhere without a browser. `q` closes the window and stops.
+
+:Programavimas login browser
+    The browser sign-in, even over SSH (with a forwarded port, for example).
+
+:Programavimas logout                                 *:Programavimas-logout*
+    Signs out, here and on the server. Your solution files stay.
+
+:Programavimas account                               *:Programavimas-account*
+    Who you are signed in as, the server and the solutions folder, with
+    Open in browser, Change solutions folder and Sign out.
+
+==============================================================================
+3. COMMANDS                                           *programavimas-commands*
+
+:Programavimas [courses]                             *:Programavimas-courses*
+    Shows or hides the Courses sidebar: your courses, their topics with
+    deadlines, and every problem with your status (○ not started, ◑ some
+    tests pass, ✓ solved, ◌ not open yet). Excel tasks open in the browser.
+
+:Programavimas open                                     *:Programavimas-open*
+    A picker of every problem of your courses (`vim.ui.select`: Telescope,
+    fzf-lua or snacks show it if you use them). Opening a problem opens its
+    solution file and its statement beside it.
+
+:Programavimas statement                           *:Programavimas-statement*
+    The statement of the problem you are on, as Markdown: the problem's facts
+    on top (status, difficulty, limits, input and output, languages,
+    deadline, attempts left), formulas as LaTeX, images as links.
+
+:Programavimas run                                       *:Programavimas-run*
+    Runs your program with the problem's samples. Not graded: as often as
+    you like.
+
+:Programavimas custom                                 *:Programavimas-custom*
+    Runs your program with your own input: the problem's input file in its
+    folder (`input.txt`, or the problem's own name such as `duom.txt`). What
+    you typed counts even before you save it.
+
+:Programavimas submit                                 *:Programavimas-submit*
+    Submits the solution: graded, and uses one of today's attempts. There is
+    no confirmation; the attempts left are in the statement, the results and
+    the status line.
+
+:Programavimas results                               *:Programavimas-results*
+    Shows or hides the tests and results.
+
+:Programavimas submissions                       *:Programavimas-submissions*
+    Your recent submissions; choose one to see its results.
+
+:Programavimas language                             *:Programavimas-language*
+    Switches the problem to another language it allows (adding `main.py`,
+    `main.cs` or `main.cpp` beside the others).
+
+:Programavimas browser                               *:Programavimas-browser*
+    Opens the problem in the browser.
+
+:Programavimas folder                                 *:Programavimas-folder*
+    Changes where new solution folders are made. Existing ones stay.
+
+==============================================================================
+4. KEYS                                                   *programavimas-keys*
+
+In a solution file (any file of a problem folder):
+
+    <localleader>r   run the samples
+    <localleader>i   run with your input
+    <localleader>s   submit
+    <localleader>p   show the statement
+    <localleader>t   show or hide the results
+    <localleader>l   switch the language
+
+Change or turn them off with `keymaps` in |programavimas-config|. They are
+also <Plug> mappings for your own keys:
+    <Plug>(programavimas-run)        <Plug>(programavimas-custom)
+    <Plug>(programavimas-submit)     <Plug>(programavimas-statement)
+    <Plug>(programavimas-results)    <Plug>(programavimas-courses)
+    <Plug>(programavimas-open)       <Plug>(programavimas-language)
+
+In the Courses sidebar:
+    <CR>, o     open the problem, or expand or collapse
+    l, h        expand, collapse
+    r           load again
+    gx          open the problem in the browser
+    P           create the folders of every open problem of the course
+    q           close
+    ?           these keys
+
+In the statement: `o` opens the solution, `gb` the problem in the browser,
+`r` loads it again, `q` closes it, `?` lists the keys.
+
+In the results: <CR> shows or hides a test's data, `r` runs the samples
+again, `q` closes, `?` lists the keys.
+
+==============================================================================
+5. SOLUTION FOLDERS                                    *programavimas-folders*
+
+Opening the first problem asks where solutions should live. Every problem
+gets a folder there:
+>
+    <solutions>/
+      algoritmai-11/                    course
+        01-paieska-ir-rikiavimas/       topic, in course order
+          01-dvejetaine-paieska/        problem
+            main.cpp                    your solution
+            input.txt                   your input, starts as sample 1
+            .programavimas              which problem this is
+<
+A new solution file starts from your newest code on the server (a draft the
+browser saved, or your latest submission), else from the problem's starter
+code. Files you wrote are never overwritten, moved or deleted. A folder is
+recognised by its `.programavimas` file, so you may rename or move it.
+
+The VS Code extension makes the same folders: give both the same solutions
+folder and switch editors whenever you like.
+
+==============================================================================
+6. RESULTS                                             *programavimas-results*
+
+A run or submission shows in a window below the editor while it is judged
+(waiting, compiling, testing 7/12) and then its verdict, the tests passed,
+times and memory, and every test. A failed test opens with its input, the
+expected output and yours, the differing lines marked and the first
+difference named. Once a submission is judged you see every test of it,
+hidden tests included.
+
+Compiler messages become |diagnostics| in your code (`:lua
+vim.diagnostic.setqflist()` lists them) and clear when you edit.
+
+==============================================================================
+7. STATUS LINE                                      *programavimas-statusline*
+
+`require("programavimas").statusline()` is the problem of the current file,
+the judging step or the last verdict, the attempts left and the file, for
+example "Dvejetainė paieška · ⠋ Testing 7/12 · 3/5 · main.cpp". It is empty in
+other files.
+>lua
+    -- lualine
+    sections = { lualine_x = { require("programavimas").statusline } }
+    -- plain
+    vim.o.statusline = "%f %= %{v:lua.require'programavimas'.statusline()} "
+<
+==============================================================================
+8. SETTINGS                                             *programavimas-config*
+
+`require("programavimas").setup(opts)` is optional. The defaults:
+>lua
+    require("programavimas").setup({
+      server = "https://beta.programavimas.xyz",
+      solutions_dir = nil,     -- nil: asked when you open the first problem
+      language = "account",    -- "account", "lt" or "en"
+      save_before_run = true,  -- write a changed solution before running
+      keymaps = {              -- false (or a false entry) turns them off
+        run = "<localleader>r",
+        custom = "<localleader>i",
+        submit = "<localleader>s",
+        statement = "<localleader>p",
+        results = "<localleader>t",
+        language = "<localleader>l",
+      },
+      courses = { width = 42, position = "left" },
+      results = { height = 14 },
+      icons = {},              -- any of: not_started, attempted, complete,
+                               -- locked, accepted, failed, limit, output,
+                               -- compile, system, expanded, collapsed,
+                               -- difficulty
+    })
+<
+`server` must be https, or http on this computer (`localhost`, `127.0.0.1`):
+your access token is sent there.
+
+==============================================================================
+9. COLOURS                                          *programavimas-highlights*
+
+The highlight groups link to standard groups, so your colour scheme applies.
+Override any of them after it loads:
+
+    ProgramavimasSuccess    DiagnosticOk     solved, accepted
+    ProgramavimasDanger     DiagnosticError  failed tests, overdue
+    ProgramavimasWarning    DiagnosticWarn   limits, solved late
+    ProgramavimasProgress   DiagnosticInfo   attempted, judging
+    ProgramavimasMuted      Comment          quiet details
+    ProgramavimasFaint      NonText          separators, line numbers
+    ProgramavimasTitle      Title            titles
+    ProgramavimasHeading    Bold             courses, data labels
+    ProgramavimasAccent     Special          difficulty, assessments
+    ProgramavimasDiff       DiffText         differing output lines
+
+==============================================================================
+10. PRIVACY                                              *programavimas-privacy*
+
+Sign-in is OAuth 2.0 with PKCE; Neovim never sees your password. The tokens
+are kept in `stdpath("data")/programavimas/sessions.json`, readable only by
+you, and are sent only to the server they came from; `curl` gets them on its
+standard input, never on its command line. Signing out ends the session on
+the server too. You only ever see your own work and results.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:
