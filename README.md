@@ -1,5 +1,7 @@
 # Programavimas for Neovim
 
+![The courses sidebar, a C++ solution, the problem's statement with its formulas, and the sample results in Neovim](media/screenshot.png)
+
 Your [programavimas.xyz](https://beta.programavimas.xyz) courses in Neovim: topics and problems
 in a sidebar, the statement beside your code, your solutions as ordinary files, and **Run
 samples**, **Run with custom input** and **Submit** on the same judge as the browser. Your
