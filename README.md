@@ -53,7 +53,10 @@ In a solution file: `<localleader>r` runs the samples, `<localleader>i` runs wit
 `<localleader>l` switches the language. In the sidebar, the statement and the results, `?`
 lists their keys.
 
-The statement is drawn to fit its window, as the browser shows it: formulas in Unicode
+Above it are the problem's facts with an icon each: your status, the difficulty, the deadline
+as the browser writes it (`gruodžio 1 d., po 3 savaičių`, `Rytoj, 23:59`, red once it has
+passed), the attempts left, the time and memory limits, the input and output, and the
+languages. The statement is drawn to fit its window, as the browser shows it: formulas in Unicode
 (`1 ≤ n ≤ 2 · 10⁵`, `√(a² + b²)`, and the LaTeX itself where a formula has no plain form),
 lists, tables, code, notes and hints, and each sample's input and output side by side. `<CR>`
 or `gx` on a link or an image opens it. It needs nothing but the Markdown parsers Neovim
@@ -170,6 +173,13 @@ require("programavimas").setup({
   statement = { render = "builtin" }, -- "markdown": a Markdown buffer, for render-markdown.nvim or markview.nvim
   icons = {},               -- e.g. { complete = "", accepted = "" } with a Nerd Font
 })
+```
+
+The icons are plain Unicode, so any font shows them. With a Nerd Font you might prefer, for the
+problem's facts (`nf-fa-clock_o`, `microchip`, `exchange`, `code`, `calendar`, `repeat`):
+
+```lua
+icons = { time_limit = "", memory_limit = "", io = "", languages = "", deadline = "", attempts = "" }
 ```
 
 Colours follow your colour scheme, light or dark: the `Programavimas*` highlight groups link to

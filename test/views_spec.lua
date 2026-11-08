@@ -109,6 +109,18 @@ describe("statement", function()
     webUrl = "https://example.com",
   }
 
+  --- The groups highlighting `part` on line `line` (1-based); {} when it has the normal colour.
+  local function groups(out, line, part)
+    local from = assert(out.lines[line]:find(part, 1, true), part)
+    local found = {}
+    for _, mark in ipairs(out.marks) do
+      if mark.line == line - 1 and mark.col <= from - 1 and mark.end_col >= from - 1 + #part then
+        table.insert(found, mark.hl)
+      end
+    end
+    return found
+  end
+
   it("draws the title, the course and topic, the facts and a rule above the statement", function()
     local out = statement.build(detail, 120)
     eq({
@@ -116,19 +128,56 @@ describe("statement", function()
       "  Dvejetainė paieška",
       "  Algoritmai › Paieška",
       "",
-      "  ◑ 2 of 5 tests pass · ▂▄▆ · Time limit 1 s · Memory 256 MB · duom.txt → rez.txt",
-      "  C++, Java (browser only) · Attempts left: 3 of 5",
+      "  ◑ 2 of 5 tests pass   ▂▄▆   ↺ 3 of 5 left",
+      "  ◷ 1 s   ▦ 256 MB   ⇄ duom.txt → rez.txt   λ C++, Java (browser only)",
       ("─"):rep(120),
       "",
       "  Raskite x ≤ 10⁵.",
     }, out.lines)
   end)
 
-  it("wraps the facts between them for a narrow window, never inside one", function()
+  it("shows the values bright, their icons and words muted", function()
+    local out = statement.build(detail, 120)
+    for _, value in ipairs({ "256", "duom.txt", "rez.txt", "C++", "Java" }) do eq({}, groups(out, 6, value), value) end
+    eq({}, groups(out, 5, "3"))
+    for _, word in ipairs({ "◷", "▦", "MB", "→", "(browser only)", "λ" }) do
+      eq({ "ProgramavimasMuted" }, groups(out, 6, word), word)
+    end
+    eq({ "ProgramavimasMuted" }, groups(out, 5, "left"))
+  end)
+
+  it("colours a deadline soon or past, and attempts used up", function()
+    local soon = vim.tbl_deep_extend("force", detail, {
+      topic = { dueAt = os.date("!%Y-%m-%dT%H:%M:%SZ", os.time() + 3600) },
+      attempts = { left = 0, total = 5 },
+    })
+    local out = statement.build(soon, 120)
+    eq({ "ProgramavimasWarning" }, groups(out, 5, "No attempts left today"))
+    local line = out.lines[5]
+    local deadline = line:match("⚑ ([^ ]+)")
+    eq("ProgramavimasWarning", groups(out, 5, deadline)[1])
+    local past = vim.tbl_deep_extend("force", detail, { topic = { dueAt = "2020-01-10T21:59:00Z" } })
+    out = statement.build(past, 120)
+    contains(out.lines[5], "⚑ Overdue · Jan 10, 2020")
+    eq({ "ProgramavimasDanger" }, groups(out, 5, "Overdue"))
+    local solved = vim.tbl_deep_extend("force", past, { status = { kind = "complete" } })
+    eq({ "ProgramavimasMuted" }, groups(statement.build(solved, 120), 5, "Overdue"))
+  end)
+
+  it("wraps each row of facts between them for a narrow window, never inside one", function()
     local lines = statement.build(detail, 52).lines
-    eq("  ◑ 2 of 5 tests pass · ▂▄▆ · Time limit 1 s", lines[5])
-    eq("  Memory 256 MB · duom.txt → rez.txt", lines[6])
-    eq("  C++, Java (browser only) · Attempts left: 3 of 5", lines[7])
+    eq("  ◑ 2 of 5 tests pass   ▂▄▆   ↺ 3 of 5 left", lines[5])
+    eq("  ◷ 1 s   ▦ 256 MB   ⇄ duom.txt → rez.txt", lines[6])
+    eq("  λ C++, Java (browser only)", lines[7])
+  end)
+
+  it("writes numbers the Lithuanian way in Lithuanian, and whole gigabytes as GB", function()
+    config.setup({ language = "lt" })
+    local lines = statement.build(vim.tbl_deep_extend("force", detail, {
+      limits = { timeMs = 1500, memoryBytes = 2147483648 },
+    }), 120).lines
+    config.setup({ language = "en" })
+    contains(lines[6], "◷ 1,5 s   ▦ 2 GB")
   end)
 
   it("keeps the server's Markdown for Markdown renderers when asked", function()
@@ -137,7 +186,8 @@ describe("statement", function()
     config.setup({ language = "en" })
     contains(s, "# Dvejetainė paieška")
     contains(s, "Algoritmai › Paieška")
-    contains(s, "◑ 2 of 5 tests pass · ▂▄▆ · Time limit 1 s · Memory 256 MB · `duom.txt` → `rez.txt` · C++, Java (browser only) · Attempts left: 3 of 5")
+    contains(s, "◑ 2 of 5 tests pass · ▂▄▆ · ↺ 3 of 5 left")
+    contains(s, "◷ 1 s · ▦ 256 MB · ⇄ `duom.txt` → `rez.txt` · λ C++, Java (browser only)")
     contains(s, "---\n\nRaskite $x \\le 10^5$.")
   end)
 

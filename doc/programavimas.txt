@@ -67,14 +67,15 @@ folders and the same results.
 :Programavimas statement                           *:Programavimas-statement*
                                                      *programavimas-statement*
     The statement of the problem you are on, beside your code: the title,
-    the course and topic, the problem's facts (status, difficulty, limits,
-    input and output, languages, deadline, attempts left), then the
-    statement drawn to fit the window, as the browser shows it: headings,
-    lists, tables, code, notes and hints, each sample's input and output
-    side by side when there is room, and formulas in Unicode
-    (`1 ≤ n ≤ 2 · 10⁵`, `√(a² + b²)`; a formula with no plain form keeps its
-    LaTeX). It is drawn again when the window's width changes. `<CR>` or
-    `gx` on a link or an image opens it in the browser.
+    the course and topic, the problem's facts with an icon each (status,
+    difficulty, the deadline as the browser writes it, such as "Rytoj, 23:59"
+    or "gruodžio 1 d., po 3 savaičių", attempts left, limits, input and
+    output, languages), then the statement drawn to fit the window, as the
+    browser shows it: headings, lists, tables, code, notes and hints, each
+    sample's input and output side by side when there is room, and formulas
+    in Unicode (`1 ≤ n ≤ 2 · 10⁵`, `√(a² + b²)`; a formula with no plain form
+    keeps its LaTeX). It is drawn again when the window's width changes.
+    `<CR>` or `gx` on a link or an image opens it in the browser.
 
     It is drawn with the Markdown parsers Neovim comes with; nothing else is
     needed. To read it with a Markdown plugin (render-markdown.nvim,
@@ -292,12 +293,21 @@ other files.
       icons = {},              -- any of: not_started, attempted, complete,
                                -- locked, accepted, failed, limit, output,
                                -- compile, system, expanded, collapsed,
-                               -- difficulty, synced, syncing
+                               -- difficulty, synced, syncing, and the
+                               -- facts' time_limit, memory_limit, io,
+                               -- languages, deadline, attempts
     })
 <
 `server` must be https, or http on this computer (`localhost`, `127.0.0.1`):
 your access token is sent there.
 
+The icons are plain Unicode (◷ ▦ ⇄ λ ⚑ ↺ for the facts), so any font shows
+them. With a Nerd Font, for example (nf-fa-clock_o, microchip, exchange, code,
+calendar, repeat):
+>lua
+    icons = { time_limit = "", memory_limit = "", io = "",
+              languages = "", deadline = "", attempts = "" }
+<
 `statement.render` is "builtin" (the statement drawn as text, see
 |programavimas-statement|) or "markdown" (a Markdown buffer, for a Markdown
 renderer plugin).
@@ -310,8 +320,10 @@ light or dark. Override any of them after it loads:
 
     ProgramavimasSuccess    DiagnosticOk     solved, accepted
     ProgramavimasDanger     DiagnosticError  failed tests, overdue
-    ProgramavimasWarning    DiagnosticWarn   limits, solved late, warnings,
-                                             the first difference
+    ProgramavimasWarning    DiagnosticWarn   limits, solved late, a deadline
+                                             within a week, no attempts
+                                             left, warnings, the first
+                                             difference
     ProgramavimasProgress   DiagnosticInfo   attempted, judging
     ProgramavimasMuted      Comment          quiet details, labels
     ProgramavimasFaint      NonText          separators, rules, line numbers

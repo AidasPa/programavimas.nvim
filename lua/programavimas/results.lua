@@ -41,9 +41,7 @@ M.context = { open = {} } ---@type programavimas.ResultsContext
 --- Line (1-based) → test position, and whether each test shows its data, for <CR>.
 local line_tests, shown_open = {}, {}
 
-local function megabytes(bytes)
-  return (("%.1f"):format(bytes / 1048576):gsub("%.0$", ""))
-end
+local function megabytes(bytes) return i18n.number(bytes / 1048576) end
 
 local width_of = vim.api.nvim_strwidth
 

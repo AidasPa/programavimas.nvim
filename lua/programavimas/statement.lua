@@ -25,49 +25,107 @@ end
 
 local function builtin() return config.options.statement.render ~= "markdown" end
 
---- The problem's facts, each a list of pieces: status, difficulty, limits, I/O, languages,
---- deadline, attempts left. `plain` pieces have no highlight of their own.
+-- Between the facts of a row.
+local GAP = "   "
+
+---@alias programavimas.Fact { [1]: string, [2]: string? }[]  Pieces and their highlight (nil: the normal colour)
+
+--- A message in pieces: its words muted, the values put in it in `value_hl` (nil: the normal
+--- colour, the brightest text), so the values read first.
+---@param key string
+---@param params table<string, any>
+---@param value_hl? string
+---@return programavimas.Fact
+local function message(key, params, value_hl)
+  return vim.tbl_map(function(part)
+    if part.value then return { part.text, value_hl } end
+    return { part.text, "ProgramavimasMuted" }
+  end, i18n.parts(key, params))
+end
+
+---@param bytes integer
+local function memory(bytes)
+  -- As the web writes it (features/problems/rules.ts): whole gigabytes as GB, else MB.
+  local mib = bytes / 1048576
+  if mib >= 1024 and (mib / 1024) % 1 == 0 then return message("statement.gigabytes", { gb = math.floor(mib / 1024) }) end
+  return message("statement.megabytes", { mb = math.max(1, math.floor(mib + 0.5)) })
+end
+
+--- The problem's facts in two rows: where you stand (status, difficulty, deadline, attempts
+--- left), then the problem (time and memory limits, input and output, languages). Each fact
+--- starts with its icon; icons and words are muted, values in the normal colour, and colour
+--- only where it means something (a deadline soon or past, no attempts left).
 ---@param detail table
 ---@param markdown boolean  File names as code spans
----@return { [1]: string, [2]: string? }[][]
+---@return programavimas.Fact[][]
 local function facts(detail, markdown)
-  local list = {}
+  local icons = config.options.icons
+  local function fact(icon, pieces)
+    return vim.list_extend({ { icons[icon] .. " ", "ProgramavimasMuted" } }, pieces)
+  end
+  local standing, problem = {}, {}
+
   local glyph = ui.status_glyph(detail.status)
-  table.insert(list, { { glyph.icon .. " " .. glyph.label, glyph.hl } })
+  table.insert(standing, { { glyph.icon .. " " .. glyph.label, glyph.hl } })
   local meter = ui.difficulty(detail.difficulty)
   if meter then
     local bars = {}
     for index, bar in ipairs(vim.fn.split(meter.text, "\\zs")) do
       table.insert(bars, { bar, index <= meter.filled and "ProgramavimasAccent" or "ProgramavimasFaint" })
     end
-    table.insert(list, bars)
+    table.insert(standing, bars)
   end
-  local seconds = ("%.1f"):format(detail.limits.timeMs / 1000):gsub("%.0$", "")
-  table.insert(list, { { t("statement.timeLimit", { seconds = seconds }) } })
-  table.insert(list, { { t("statement.memoryLimit", { mb = math.floor(detail.limits.memoryBytes / 1048576) }) } })
-  if detail.io.kind == "files" then
-    local quote = markdown and "`" or ""
-    table.insert(list, { { quote .. detail.io.input .. quote .. " → " .. quote .. detail.io.output .. quote } })
-  else
-    table.insert(list, { { t("statement.stdio") } })
-  end
-  if #(detail.languages or {}) > 0 then
-    local names = vim.tbl_map(function(language)
-      return paths.is_editor_language(language.code) and language.name
-        or t("statement.languageElsewhere", { name = language.name })
-    end, detail.languages)
-    table.insert(list, { { table.concat(names, ", ") } })
-  end
-  local due = detail.topic and time.parse(detail.topic.dueAt)
-  if due then table.insert(list, { { time.due_label(due), due < os.time() and "ProgramavimasDanger" or nil } }) end
-  if detail.attempts and detail.attempts.total then
-    if detail.attempts.left > 0 then
-      table.insert(list, { { t("attempts.short", { left = detail.attempts.left, total = detail.attempts.total }) } })
+  local at = detail.topic and time.parse(detail.topic.dueAt)
+  if at then
+    local due = time.due(at)
+    -- A solved problem's deadline no longer presses.
+    local hl = detail.status.kind == "complete" and "ProgramavimasMuted"
+      or due.tone == "danger" and "ProgramavimasDanger"
+      or due.tone == "warning" and "ProgramavimasWarning"
+      or nil
+    if due.later then
+      table.insert(standing, fact("deadline", { { due.date, hl }, { ", " .. due.later, "ProgramavimasMuted" } }))
     else
-      table.insert(list, { { t("attempts.none"), "ProgramavimasWarning" } })
+      table.insert(standing, fact("deadline", { { due.text, hl } }))
     end
   end
-  return list
+  if detail.attempts and detail.attempts.total then
+    if detail.attempts.left > 0 then
+      table.insert(standing, fact("attempts", message("statement.attempts", {
+        left = detail.attempts.left,
+        total = detail.attempts.total,
+      })))
+    else
+      table.insert(standing, fact("attempts", { { t("attempts.none"), "ProgramavimasWarning" } }))
+    end
+  end
+
+  local seconds = i18n.number(detail.limits.timeMs / 1000)
+  table.insert(problem, fact("time_limit", message("statement.seconds", { seconds = seconds })))
+  table.insert(problem, fact("memory_limit", memory(detail.limits.memoryBytes)))
+  if detail.io.kind == "files" then
+    local quote = markdown and "`" or ""
+    table.insert(problem, fact("io", {
+      { quote .. detail.io.input .. quote },
+      { " → ", "ProgramavimasMuted" },
+      { quote .. detail.io.output .. quote },
+    }))
+  else
+    table.insert(problem, fact("io", { { t("statement.stdio") } }))
+  end
+  if #(detail.languages or {}) > 0 then
+    local names = {}
+    for index, language in ipairs(detail.languages) do
+      if index > 1 then table.insert(names, { ", ", "ProgramavimasMuted" }) end
+      if paths.is_editor_language(language.code) then
+        table.insert(names, { language.name })
+      else
+        vim.list_extend(names, message("statement.languageElsewhere", { name = language.name }))
+      end
+    end
+    table.insert(problem, fact("languages", names))
+  end
+  return { standing, problem }
 end
 
 ---@param detail table
@@ -84,11 +142,14 @@ local function build_markdown(detail)
   local out = ui.lines()
   out:line("# " .. detail.title):nl()
   out:line(breadcrumb(detail), "ProgramavimasMuted"):nl()
-  for index, fact in ipairs(facts(detail, true)) do
-    if index > 1 then out:add(" · ", "ProgramavimasFaint") end
-    for _, piece in ipairs(fact) do out:add(piece[1], piece[2]) end
+  for _, row in ipairs(facts(detail, true)) do
+    for index, fact in ipairs(row) do
+      if index > 1 then out:add(" · ", "ProgramavimasFaint") end
+      for _, piece in ipairs(fact) do out:add(piece[1], piece[2]) end
+    end
+    out:nl():nl()
   end
-  out:nl():nl():line("---"):nl()
+  out:line("---"):nl()
   if detail.statementMarkdown then
     for _, line in ipairs(vim.split(vim.trim(detail.statementMarkdown), "\n", { plain = true })) do
       out:line(line)
@@ -119,25 +180,23 @@ function M.build(detail, width)
   end
   out:add(MARGIN):line(breadcrumb(detail), "ProgramavimasMuted"):nl()
 
-  -- The facts, wrapped between them, never inside one.
-  local used = 0
-  for _, fact in ipairs(facts(detail, false)) do
-    local cells = 0
-    for _, piece in ipairs(fact) do cells = cells + vim.api.nvim_strwidth(piece[1]) end
-    if used > 0 and used + 3 + cells > measure then
-      out:nl()
-      used = 0
+  -- The facts, each row wrapped between facts, never inside one.
+  for _, row in ipairs(facts(detail, false)) do
+    local used = 0
+    for _, fact in ipairs(row) do
+      local cells = 0
+      for _, piece in ipairs(fact) do cells = cells + vim.api.nvim_strwidth(piece[1]) end
+      if used > 0 and used + #GAP + cells > measure then
+        out:nl()
+        used = 0
+      end
+      out:add(used == 0 and MARGIN or GAP)
+      if used > 0 then used = used + #GAP end
+      for _, piece in ipairs(fact) do out:add(piece[1], piece[2]) end
+      used = used + cells
     end
-    if used == 0 then
-      out:add(MARGIN)
-    else
-      out:add(" · ", "ProgramavimasFaint")
-      used = used + 3
-    end
-    for _, piece in ipairs(fact) do out:add(piece[1], piece[2] or "ProgramavimasMuted") end
-    used = used + cells
+    out:nl()
   end
-  out:nl()
   out:line(("─"):rep(math.max(width, 1)), "ProgramavimasFaint"):nl()
 
   local anchors

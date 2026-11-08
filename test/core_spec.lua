@@ -1,6 +1,7 @@
 local config = require("programavimas.config")
 local diff = require("programavimas.diff")
 local http = require("programavimas.http")
+local i18n = require("programavimas.i18n")
 local oauth = require("programavimas.oauth")
 local time = require("programavimas.time")
 
@@ -36,12 +37,75 @@ describe("time", function()
     eq("03:00", time.clock(time.parse("2026-10-25T01:00:00Z")))
   end)
 
-  it("says when a deadline is", function()
-    local now = time.parse("2026-11-07T10:00:00Z")
-    eq("Today, 23:59", time.due_label(time.parse("2026-11-07T21:59:00Z"), now))
-    eq("Tomorrow, 08:00", time.due_label(time.parse("2026-11-08T06:00:00Z"), now))
-    eq("Due 2026-11-12 23:59", time.due_label(time.parse("2026-11-12T21:59:00Z"), now))
-    eq("Overdue · 2026-11-06 23:59", time.due_label(time.parse("2026-11-06T21:59:00Z"), now))
+  -- Saturday 7 November 2026, 12:00 in Vilnius.
+  local now = time.parse("2026-11-07T10:00:00Z")
+  local function due(at) return time.due(time.parse(at), now) end
+
+  it("says when a deadline is as the web does, by Vilnius calendar days", function()
+    eq({ text = "Today, 23:59", date = "Nov 7", tone = "warning" }, due("2026-11-07T21:59:00Z"))
+    eq({ text = "Tomorrow, 08:00", date = "Nov 8, 08:00", tone = "warning" }, due("2026-11-08T06:00:00Z"))
+    -- 00:30 in Vilnius is already tomorrow, though under a day away.
+    eq("Tomorrow, 00:30", due("2026-11-07T22:30:00Z").text)
+    eq({ text = "In 5 days", date = "Nov 12", later = "in 5 days", tone = "warning" }, due("2026-11-12T21:59:00Z"))
+    eq({ text = "In 7 days", date = "Nov 14", later = "in 7 days", tone = "warning" }, due("2026-11-14T21:59:00Z"))
+    eq({ text = "Nov 15", date = "Nov 15", later = "in 8 days" }, due("2026-11-15T21:59:00Z"))
+    eq({ text = "Overdue · Nov 6", date = "Nov 6", tone = "danger" }, due("2026-11-06T21:59:00Z"))
+  end)
+
+  it("says how far off a later deadline is: days, then weeks, then months", function()
+    eq("in 13 days", due("2026-11-20T21:59:00Z").later)
+    eq("in 2 weeks", due("2026-11-21T21:59:00Z").later)
+    eq("in 3 weeks", due("2026-12-01T21:59:00Z").later)
+    eq("in 8 weeks", due("2027-01-05T21:59:00Z").later)
+    eq("in 2 months", due("2027-01-06T21:59:00Z").later)
+    eq("in 1 month", i18n.t("due.laterMonths", { count = 1 }))
+  end)
+
+  it("writes the year only when it isn't this year's, the time only when it isn't 23:59", function()
+    eq("Jan 6, 2027", due("2027-01-06T21:59:00Z").date)
+    eq("Dec 1", due("2026-12-01T21:59:00Z").date)
+    eq("Dec 1, 08:00", due("2026-12-01T06:00:00Z").date)
+  end)
+
+  it("says it in Lithuanian, with its plural forms", function()
+    config.setup({ language = "lt" })
+    local ok, err = pcall(function()
+      eq({ text = "Rytoj, 08:00", date = "lapkričio 8 d. 08:00", tone = "warning" }, due("2026-11-08T06:00:00Z"))
+      eq({ text = "Po 5 dienų", date = "lapkričio 12 d.", later = "po 5 dienų", tone = "warning" }, due("2026-11-12T21:59:00Z"))
+      eq({ text = "gruodžio 1 d.", date = "gruodžio 1 d.", later = "po 3 savaičių" }, due("2026-12-01T21:59:00Z"))
+      eq("Pavėluota · lapkričio 6 d.", due("2026-11-06T21:59:00Z").text)
+      eq("Šiandien, 23:59", due("2026-11-07T21:59:00Z").text)
+      eq("2027 m. sausio 6 d.", due("2027-01-06T21:59:00Z").date)
+      eq("po 2 mėnesių", due("2027-01-06T21:59:00Z").later)
+      local function form(key, count) return i18n.t(key, { count = count }) end
+      eq("Po 1 dienos", form("due.inDays", 1))
+      eq("Po 2 dienų", form("due.inDays", 2))
+      eq("po 1 savaitės", form("due.laterWeeks", 1))
+      eq("po 4 savaičių", form("due.laterWeeks", 4))
+      eq("po 10 savaičių", form("due.laterWeeks", 10))
+      eq("po 11 savaičių", form("due.laterWeeks", 11))
+      eq("po 21 savaitės", form("due.laterWeeks", 21))
+      eq("po 22 savaičių", form("due.laterWeeks", 22))
+      eq("po 1 mėnesio", form("due.laterMonths", 1))
+      eq("po 12 mėnesių", form("due.laterMonths", 12))
+    end)
+    config.setup({ language = "en" })
+    if not ok then error(err, 0) end
+  end)
+
+  it("tells a message's values from its words", function()
+    eq({
+      { text = "Liko ", value = false },
+      { text = "3", value = true },
+      { text = " iš ", value = false },
+      { text = "5", value = true },
+    }, (function()
+      config.setup({ language = "lt" })
+      local parts = i18n.parts("statement.attempts", { left = 3, total = 5 })
+      config.setup({ language = "en" })
+      return parts
+    end)())
+    eq("{left} of 5 left", i18n.t("statement.attempts", { total = 5 }))
   end)
 end)
 

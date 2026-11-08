@@ -80,7 +80,6 @@ local en = {
   ["due.overdue"] = "Overdue · {date}",
   ["due.today"] = "Today, {time}",
   ["due.tomorrow"] = "Tomorrow, {time}",
-  ["due.on"] = "Due {date}",
 
   ["actions.runSamples"] = "Run samples",
   ["actions.runCustom"] = "Run with custom input",
@@ -151,8 +150,6 @@ local en = {
   ["results.memory"] = "{mb} MB",
   ["results.help"] = "<CR> show or hide a test · r run samples · q close",
 
-  ["statement.timeLimit"] = "Time limit {seconds} s",
-  ["statement.memoryLimit"] = "Memory {mb} MB",
   ["statement.stdio"] = "Standard input and output",
   ["statement.notReady"] = "The statement isn't ready here yet. Open the problem in the browser.",
   ["statement.languageElsewhere"] = "{name} (browser only)",
@@ -197,6 +194,21 @@ local en = {
   ["auth.deviceOpen"] = "On any device, open",
   ["auth.deviceEnter"] = "and enter this code:",
   ["auth.deviceCancel"] = "q cancel",
+
+  -- Dates and deadlines as the web shows them (apps/web/src/features/shared/due-date.tsx,
+  -- i18n/formats.ts): "Dec 1"; within a week "In 3 days"; after a date, how far off.
+  ["date.months"] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" },
+  ["date.day"] = "{month} {day}",
+  ["date.dayYear"] = "{month} {day}, {year}",
+  ["date.dayTime"] = "{date}, {time}",
+  ["due.inDays"] = { one = "In {count} day", other = "In {count} days" },
+  ["due.laterDays"] = { one = "in {count} day", other = "in {count} days" },
+  ["due.laterWeeks"] = { one = "in {count} week", other = "in {count} weeks" },
+  ["due.laterMonths"] = { one = "in {count} month", other = "in {count} months" },
+  ["statement.seconds"] = "{seconds} s",
+  ["statement.megabytes"] = "{mb} MB",
+  ["statement.gigabytes"] = "{gb} GB",
+  ["statement.attempts"] = "{left} of {total} left",
 }
 
 local lt = {
@@ -274,7 +286,6 @@ local lt = {
   ["due.overdue"] = "Pavėluota · {date}",
   ["due.today"] = "Šiandien, {time}",
   ["due.tomorrow"] = "Rytoj, {time}",
-  ["due.on"] = "Terminas {date}",
 
   ["actions.runSamples"] = "Paleisti su pavyzdžiais",
   ["actions.runCustom"] = "Paleisti su savais duomenimis",
@@ -345,8 +356,6 @@ local lt = {
   ["results.memory"] = "{mb} MB",
   ["results.help"] = "<CR> rodyti ar slėpti testą · r paleisti pavyzdžius · q uždaryti",
 
-  ["statement.timeLimit"] = "Laiko riba {seconds} s",
-  ["statement.memoryLimit"] = "Atmintis {mb} MB",
   ["statement.stdio"] = "Standartinė įvestis ir išvestis",
   ["statement.notReady"] = "Sąlyga čia dar neparengta. Atidarykite užduotį naršyklėje.",
   ["statement.languageElsewhere"] = "{name} (tik naršyklėje)",
@@ -391,6 +400,22 @@ local lt = {
   ["auth.deviceOpen"] = "Bet kuriame įrenginyje atidarykite",
   ["auth.deviceEnter"] = "ir įveskite šį kodą:",
   ["auth.deviceCancel"] = "q atšaukti",
+
+  ["date.months"] = {
+    "sausio", "vasario", "kovo", "balandžio", "gegužės", "birželio",
+    "liepos", "rugpjūčio", "rugsėjo", "spalio", "lapkričio", "gruodžio",
+  },
+  ["date.day"] = "{month} {day} d.",
+  ["date.dayYear"] = "{year} m. {month} {day} d.",
+  ["date.dayTime"] = "{date} {time}",
+  ["due.inDays"] = { one = "Po {count} dienos", few = "Po {count} dienų", other = "Po {count} dienų" },
+  ["due.laterDays"] = { one = "po {count} dienos", few = "po {count} dienų", other = "po {count} dienų" },
+  ["due.laterWeeks"] = { one = "po {count} savaitės", few = "po {count} savaičių", other = "po {count} savaičių" },
+  ["due.laterMonths"] = { one = "po {count} mėnesio", few = "po {count} mėnesių", other = "po {count} mėnesių" },
+  ["statement.seconds"] = "{seconds} s",
+  ["statement.megabytes"] = "{mb} MB",
+  ["statement.gigabytes"] = "{gb} GB",
+  ["statement.attempts"] = "Liko {left} iš {total}",
 }
 
 M.catalogs = { en = en, lt = lt }
@@ -412,15 +437,83 @@ end
 ---@param key string
 ---@param params? table<string, any>
 ---@return string
-function M.t(key, params)
-  local text = M.catalogs[M.language()][key] or en[key] or key
-  if params then
-    text = text:gsub("{(%w+)}", function(name)
-      local value = params[name]
-      return value ~= nil and tostring(value) or "{" .. name .. "}"
-    end)
+--- The plural category of a whole number, by language (CLDR's rules for integers).
+---@type table<string, fun(n: integer): "one"|"few"|"other">
+M.plural = {
+  en = function(n) return n == 1 and "one" or "other" end,
+  -- 1, 21, 31 dienos; 2–9, 22 dienų; 0, 10–20, 30 dienų (the same word as few, a different rule)
+  lt = function(n)
+    local ten, hundred = n % 10, n % 100
+    if hundred >= 11 and hundred <= 19 then return "other" end
+    if ten == 1 then return "one" end
+    if ten >= 2 then return "few" end
+    return "other"
+  end,
+}
+
+--- The template of a key in the current language: a plural message picks its form by
+--- `params.count`.
+---@param key string
+---@param params? table<string, any>
+---@return string
+local function template(key, params)
+  local language = M.language()
+  local entry = M.catalogs[language][key] or en[key] or key
+  if type(entry) == "table" then
+    local count = params and tonumber(params.count) or 0
+    entry = entry[M.plural[language](math.floor(math.abs(count)))] or entry.other
   end
-  return text
+  return entry
+end
+
+--- A string with `{name}` placeholders filled in.
+---@param key string
+---@param params? table<string, any>
+---@return string
+function M.t(key, params)
+  local parts = {}
+  for _, part in ipairs(M.parts(key, params)) do table.insert(parts, part.text) end
+  return table.concat(parts)
+end
+
+--- A string in pieces: the message's own words, and the values put in its placeholders
+--- (`value = true`), so a view can show the values brighter than the words around them.
+---@param key string
+---@param params? table<string, any>
+---@return { text: string, value: boolean }[]
+function M.parts(key, params)
+  local text, parts, position = template(key, params), {}, 1
+  while true do
+    local from, to, name = text:find("{(%w+)}", position)
+    local value = from and params and params[name]
+    if not from then break end
+    if from > position then table.insert(parts, { text = text:sub(position, from - 1), value = false }) end
+    if value ~= nil then
+      table.insert(parts, { text = tostring(value), value = true })
+    else
+      table.insert(parts, { text = text:sub(from, to), value = false })
+    end
+    position = to + 1
+  end
+  if position <= #text then table.insert(parts, { text = text:sub(position), value = false }) end
+  return parts
+end
+
+--- A number with at most `decimals` decimals, none when whole, in the language's way:
+--- "1.5" in English, "1,5" in Lithuanian, as the web formats them.
+---@param value number
+---@param decimals? integer
+function M.number(value, decimals)
+  local text = ("%." .. (decimals or 1) .. "f"):format(value)
+  if text:find(".", 1, true) then text = text:gsub("0+$", ""):gsub("%.$", "") end
+  return M.language() == "lt" and (text:gsub("%.", ",")) or text
+end
+
+--- The name of a month (1–12) as dates use it: "Dec", "gruodžio".
+---@param month integer
+function M.month(month)
+  local months = M.catalogs[M.language()]["date.months"] or en["date.months"]
+  return months[month]
 end
 
 return M

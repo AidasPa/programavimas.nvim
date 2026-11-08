@@ -50,6 +50,14 @@ M.defaults = {
     difficulty = "▂▄▆",
     synced = "☁",
     syncing = "↑",
+    -- The problem's facts (the web's Timer, MemoryStick, FileText, Code, CalendarDays and
+    -- RotateCcw), one cell wide in common terminal fonts, never emoji.
+    time_limit = "◷",
+    memory_limit = "▦",
+    io = "⇄",
+    languages = "λ",
+    deadline = "⚑",
+    attempts = "↺",
   },
   courses = { width = 42, position = "left" },
   results = { height = 14 },

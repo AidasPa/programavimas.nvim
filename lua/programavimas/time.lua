@@ -65,19 +65,65 @@ function M.date_time(epoch) return vilnius("%Y-%m-%d %H:%M", epoch) end
 ---@param epoch number
 function M.clock(epoch) return vilnius("%H:%M", epoch) end
 
---- "Today, 23:59", "Tomorrow, 08:00", "Due 2026-11-12 23:59", "Overdue · …".
+---@param epoch number
+---@return integer year, integer month, integer day  In Vilnius
+local function civil(epoch)
+  local year, month, day = vilnius("%Y-%m-%d", epoch):match("^(%d+)-(%d+)-(%d+)$")
+  return tonumber(year), tonumber(month), tonumber(day)
+end
+
+--- Days since 1970-01-01 of the Vilnius calendar day of a moment.
+---@param epoch number
+local function calendar_day(epoch) return days_from_civil(civil(epoch)) end
+
+--- A day as the web writes it (i18n/formats.ts "dayMonth"): "Dec 1", "gruodžio 1 d."; with the
+--- year when it isn't this year's, and the time when it isn't the end of the day
+--- ("Dec 1, 08:00", "gruodžio 1 d. 08:00").
+---@param epoch number
+---@param now? number
+function M.day(epoch, now)
+  local i18n = require("programavimas.i18n")
+  local year, month, day = civil(epoch)
+  local this_year = civil(now or os.time())
+  local date = i18n.t(year == this_year and "date.day" or "date.dayYear", {
+    month = i18n.month(month),
+    day = day,
+    year = year,
+  })
+  local clock = M.clock(epoch)
+  return clock == "23:59" and date or i18n.t("date.dayTime", { date = date, time = clock })
+end
+
+---@class programavimas.Due  A deadline in words
+---@field text string    As the web's lists show it: "Today, 23:59", "In 3 days", "Dec 1", "Overdue · Nov 3"
+---@field date string    The day: "Dec 1", "gruodžio 1 d. 08:00"
+---@field later string?  How far off, to follow the date: "in 3 days", "in 4 weeks", "in 2 months"
+---@field tone "danger"|"warning"|nil  Past; within a week (the web's red and orange)
+
+--- A deadline as the web shows it (features/shared/due-date.tsx), counted in Vilnius calendar
+--- days: today and tomorrow with the time, "In N days" within a week, else the date; and how
+--- far off it is, for where there is room.
 ---@param due number
 ---@param now? number
-function M.due_label(due, now)
+---@return programavimas.Due
+function M.due(due, now)
   local t = require("programavimas.i18n").t
   now = now or os.time()
-  if due < now then return t("due.overdue", { date = M.date_time(due) }) end
-  local today = vilnius("%Y-%m-%d", now)
-  local tomorrow = vilnius("%Y-%m-%d", now + 86400)
-  local day = vilnius("%Y-%m-%d", due)
-  if day == today then return t("due.today", { time = M.clock(due) }) end
-  if day == tomorrow then return t("due.tomorrow", { time = M.clock(due) }) end
-  return t("due.on", { date = M.date_time(due) })
+  local date = M.day(due, now)
+  if due < now then return { text = t("due.overdue", { date = date }), date = date, tone = "danger" } end
+  local days = calendar_day(due) - calendar_day(now)
+  if days == 0 then return { text = t("due.today", { time = M.clock(due) }), date = date, tone = "warning" } end
+  if days == 1 then return { text = t("due.tomorrow", { time = M.clock(due) }), date = date, tone = "warning" } end
+  local later
+  if days < 14 then
+    later = t("due.laterDays", { count = days })
+  elseif days < 60 then
+    later = t("due.laterWeeks", { count = math.floor(days / 7 + 0.5) })
+  else
+    later = t("due.laterMonths", { count = math.floor(days / 30.44 + 0.5) })
+  end
+  if days <= 7 then return { text = t("due.inDays", { count = days }), date = date, later = later, tone = "warning" } end
+  return { text = date, date = date, later = later }
 end
 
 return M

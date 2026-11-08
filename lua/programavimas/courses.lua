@@ -138,15 +138,21 @@ local function row(out, width, left, right, indent)
   out:nl()
 end
 
---- A topic's details: an assessment, the deadline.
+--- A topic's details: an assessment, the deadline as the web's lists write it ("Tomorrow,
+--- 23:59", "In 3 days", "Dec 1"), orange within a week and red when past.
 ---@param topic table
 local function topic_details(topic)
   local details = {}
   if topic.mode == "test" then table.insert(details, { t("courses.topicMode.test"), "ProgramavimasAccent" }) end
-  local due = time.parse(topic.dueAt)
-  if due then
+  local at = time.parse(topic.dueAt)
+  if at then
+    local due = time.due(at)
     if #details > 0 then table.insert(details, { " · ", "ProgramavimasFaint" }) end
-    table.insert(details, { time.due_label(due), due < os.time() and "ProgramavimasDanger" or "ProgramavimasMuted" })
+    table.insert(details, { config.options.icons.deadline .. " ", "ProgramavimasMuted" })
+    table.insert(details, {
+      due.text,
+      due.tone == "danger" and "ProgramavimasDanger" or due.tone == "warning" and "ProgramavimasWarning" or "ProgramavimasMuted",
+    })
   end
   return details
 end
